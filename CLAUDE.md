@@ -33,9 +33,9 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 ## search.html internals
 - Loads `products.json` via `fetch()` on init (same requirement: must run via local server)
 - **Structured filters** — pill toggle buttons, multi-select, OR-logic within a category, AND-logic across categories:
-  - **Type** (7 values): `adventure`, `accessory`, `boxed set`, `hardcover`, `Flip-book`, `boardgame`, `miniatures`
-  - **System** (8 values): `AD&D 2e`, `AD&D 1e`, `Basic D&D`, `OD&D`, `Dragon Quest`, `D&D 3e`, `D&D 3.5`, `Chainmail`
-  - **Setting** (22 values + null): Forgotten Realms, Greyhawk, Mystara, Ravenloft, Dragonlance, Planescape, Dark Sun, Birthright, Spelljammer, Al-Qadim, Lankhmar, Thunder Rift, Kara-Tur, Mystara (2E), Blackmoor, Conan, Celtic, Eberron, Ghostwalk, Oriental Adventures, Diablo, Chainmail — plus `(no setting)` for products where `setting` is null
+  - **Type** (8 values): `adventure`, `accessory`, `boxed set`, `hardcover`, `Flip-book`, `boardgame`, `miniatures`, `magazine`
+  - **System** (9 values): `AD&D 2e`, `AD&D 1e`, `Basic D&D`, `OD&D`, `Dragon Quest`, `D&D 3e`, `D&D 3.5`, `Chainmail`, `D&D 4e`
+  - **Setting** (23 values + null): Forgotten Realms, Greyhawk, Mystara, Ravenloft, Dragonlance, Planescape, Dark Sun, Birthright, Spelljammer, Al-Qadim, Lankhmar, Thunder Rift, Kara-Tur, Mystara (2E), Blackmoor, Conan, Celtic, Eberron, Ghostwalk, Oriental Adventures, Diablo, Chainmail, Various — plus `(no setting)` for products where `setting` is null
   - **Publisher** (2 values): `TSR`, `WotC`
 - **Text search** — live, debounced 200ms, case-insensitive, searches: `title`, `dtrpg_title`, `module_code`, `product_code`, `authors`, `cover_artist`, `blurb`
 - Pill counts show total products per value (not filtered count) — they are built once on load
@@ -110,6 +110,16 @@ Years fully downloaded to `covers/full/` (run `download_covers.py` then regenera
 - ids 1023 & 1028 (2007): local covers only (no cover_url in covers.csv); included via local file detection
 - Front/back covers not yet downloaded: 2000–2007 (3rd Ed era, WotC products — most not yet in products.json)
 - Years with no products (skip): 2009–2011
+
+### Dragon Magazine covers (ids 1042–1471)
+430 magazine issues added (The Dragon #1 through Dragon #430, 1976–2013). Cover images
+sourced from `cf.geekdo-images.com` URLs (BoardGameGeek); no back covers exist in covers.csv.
+- 20 front covers already present locally (ids 1069, 1091, 1095, 1096, 1107, 1146, 1148, 1150–1153, 1155, 1159, 1160, 1170, 1192, 1195, 1197, 1200, 1204); auto-picked up by convert_csv.py
+- Remaining ~410 magazine covers need downloading via `download_covers.py <year>` for each year 1976–2013
+- Years 1976–1999: magazines overlap with fully-downloaded product years; existing product files are skipped automatically, only magazine covers are fetched
+- Years 2000–2007: Dragon is now the only product type in products.json for these years (D&D 3e/3.5 era WotC products not yet imported)
+- Years 2008–2013: magazines alongside the already-downloaded WotC product covers
+- Magazine `setting` is always `"Various"` — they are not setting-specific publications
 
 ## Running Locally
 Open `index.html` via a local server (required — `fetch()` won't work over `file://`):

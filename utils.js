@@ -31,13 +31,18 @@ function loadActiveFilters() {
  */
 function applyFiltersToProducts(all, filters) {
     if (!filters) return all;
-    const { type, system, setting, publisher, text } = filters;
+    const { type, system, setting, publisher, text,
+            exclude_type, exclude_system, exclude_setting, exclude_publisher } = filters;
     const q = (text || '').toLowerCase();
     return all.filter(p => {
-        if (type    && type.length    && !type.includes(p.type))                    return false;
-        if (system  && system.length  && !system.includes(p.system))                return false;
+        if (type      && type.length      && !type.includes(p.type))                       return false;
+        if (system    && system.length    && !system.includes(p.system))                   return false;
         if (setting   && setting.length   && !setting.includes(p.setting ?? '__none__'))   return false;
-        if (publisher && publisher.length && !publisher.includes(p.publisher))            return false;
+        if (publisher && publisher.length && !publisher.includes(p.publisher))             return false;
+        if (exclude_type      && exclude_type.includes(p.type))                            return false;
+        if (exclude_system    && exclude_system.includes(p.system))                        return false;
+        if (exclude_setting   && exclude_setting.includes(p.setting ?? '__none__'))        return false;
+        if (exclude_publisher && exclude_publisher.includes(p.publisher))                  return false;
         if (q) {
             const matches = TEXT_FIELDS.some(f => p[f] && p[f].toLowerCase().includes(q));
             if (!matches) return false;

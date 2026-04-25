@@ -146,6 +146,12 @@
             border-color: var(--accent);
             font-weight: 600;
         }
+        .pill.excluded {
+            background: #6b1a1a;
+            color: #ffaaaa;
+            border-color: #c04040;
+            font-weight: 600;
+        }
 
         .pill-count {
             opacity: 0.6;
@@ -286,6 +292,12 @@
             setting:   new Set(),
             publisher: new Set()
         };
+        const excludedFilters = {
+            type:      new Set(),
+            system:    new Set(),
+            setting:   new Set(),
+            publisher: new Set()
+        };
         let searchText = '';
         let debounceTimer = null;
 
@@ -304,6 +316,10 @@
                 || activeFilters.system.size > 0
                 || activeFilters.setting.size > 0
                 || activeFilters.publisher.size > 0
+                || excludedFilters.type.size > 0
+                || excludedFilters.system.size > 0
+                || excludedFilters.setting.size > 0
+                || excludedFilters.publisher.size > 0
                 || searchText.length > 0;
             btnClearFilters.style.display = hasFilters ? '' : 'none';
         }
@@ -314,7 +330,11 @@
                 system:    [...activeFilters.system],
                 setting:   [...activeFilters.setting],
                 publisher: [...activeFilters.publisher],
-                text:      searchText
+                text:      searchText,
+                exclude_type:      [...excludedFilters.type],
+                exclude_system:    [...excludedFilters.system],
+                exclude_setting:   [...excludedFilters.setting],
+                exclude_publisher: [...excludedFilters.publisher],
             }));
             updateClearButton();
         }
@@ -327,6 +347,10 @@
             for (const val of (saved.system    || [])) activeFilters.system.add(val);
             for (const val of (saved.setting   || [])) activeFilters.setting.add(val);
             for (const val of (saved.publisher || [])) activeFilters.publisher.add(val);
+            for (const val of (saved.exclude_type      || [])) excludedFilters.type.add(val);
+            for (const val of (saved.exclude_system    || [])) excludedFilters.system.add(val);
+            for (const val of (saved.exclude_setting   || [])) excludedFilters.setting.add(val);
+            for (const val of (saved.exclude_publisher || [])) excludedFilters.publisher.add(val);
             searchText = saved.text || '';
             searchInput.value = searchText;
         }
@@ -336,10 +360,14 @@
             activeFilters.system.clear();
             activeFilters.setting.clear();
             activeFilters.publisher.clear();
+            excludedFilters.type.clear();
+            excludedFilters.system.clear();
+            excludedFilters.setting.clear();
+            excludedFilters.publisher.clear();
             searchText = '';
             searchInput.value = '';
-            document.querySelectorAll('.pill.active').forEach(p => {
-                p.classList.remove('active');
+            document.querySelectorAll('.pill.active, .pill.excluded').forEach(p => {
+                p.classList.remove('active', 'excluded');
                 p.setAttribute('aria-pressed', 'false');
             });
             localStorage.removeItem(FILTERS_KEY);
@@ -364,7 +392,11 @@
                 (activeFilters.type.size === 0      || activeFilters.type.has(p.type)) &&
                 (activeFilters.system.size === 0    || activeFilters.system.has(p.system)) &&
                 (activeFilters.setting.size === 0   || activeFilters.setting.has(p.setting ?? '__none__')) &&
-                (activeFilters.publisher.size === 0 || activeFilters.publisher.has(p.publisher))
+                (activeFilters.publisher.size === 0 || activeFilters.publisher.has(p.publisher)) &&
+                !excludedFilters.type.has(p.type) &&
+                !excludedFilters.system.has(p.system) &&
+                !excludedFilters.setting.has(p.setting ?? '__none__') &&
+                !excludedFilters.publisher.has(p.publisher)
             );
         }
 
@@ -446,10 +478,19 @@
 
                 pill.addEventListener('click', () => {
                     if (activeFilters[category].has(value)) {
+                        // include → exclude
                         activeFilters[category].delete(value);
                         pill.classList.remove('active');
+                        excludedFilters[category].add(value);
+                        pill.classList.add('excluded');
+                        pill.setAttribute('aria-pressed', 'false');
+                    } else if (excludedFilters[category].has(value)) {
+                        // exclude → neutral
+                        excludedFilters[category].delete(value);
+                        pill.classList.remove('excluded');
                         pill.setAttribute('aria-pressed', 'false');
                     } else {
+                        // neutral → include
                         activeFilters[category].add(value);
                         pill.classList.add('active');
                         pill.setAttribute('aria-pressed', 'true');
@@ -529,27 +570,22 @@
 
             buildAllPills();
             restoreFilters();
-            // Mark pills active from restored filter state
-            document.querySelectorAll('#pills-type .pill').forEach(pill => {
-                const active = activeFilters.type.has(pill.dataset.value);
-                pill.classList.toggle('active', active);
-                pill.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
-            document.querySelectorAll('#pills-system .pill').forEach(pill => {
-                const active = activeFilters.system.has(pill.dataset.value);
-                pill.classList.toggle('active', active);
-                pill.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
-            document.querySelectorAll('#pills-setting .pill').forEach(pill => {
-                const active = activeFilters.setting.has(pill.dataset.value);
-                pill.classList.toggle('active', active);
-                pill.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
-            document.querySelectorAll('#pills-publisher .pill').forEach(pill => {
-                const active = activeFilters.publisher.has(pill.dataset.value);
-                pill.classList.toggle('active', active);
-                pill.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
+            // Sync pill visual state from restored filter sets
+            for (const [containerId, category] of [
+                ['pills-type', 'type'], ['pills-system', 'system'],
+                ['pills-setting', 'setting'], ['pills-publisher', 'publisher']
+            ]) {
+                document.querySelectorAll(`#${containerId} .pill`).forEach(pill => {
+                    const val = pill.dataset.value;
+                    if (activeFilters[category].has(val)) {
+                        pill.classList.add('active');
+                        pill.setAttribute('aria-pressed', 'true');
+                    } else if (excludedFilters[category].has(val)) {
+                        pill.classList.add('excluded');
+                        pill.setAttribute('aria-pressed', 'false');
+                    }
+                });
+            }
             updateClearButton();
             renderResults();
         }
