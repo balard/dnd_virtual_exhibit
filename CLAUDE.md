@@ -108,7 +108,7 @@ Years fully downloaded to `covers/full/` (run `download_covers.py` then regenera
 - Back covers: 1974–1999 ✓, 2008 ✓ (ids 1033–1035), 2012 ✓ (ids 1037–1039), 2013 ✓ (id=420 [1992] back added manually)
 - id=868 (The Book of Regency, 2002) has no back cover — intentionally absent, confirmed dead link
 - ids 1023 & 1028 (2007): local covers only (no cover_url in covers.csv); included via local file detection
-- Front/back covers not yet downloaded: 2000–2007 (3rd Ed era, WotC products — most not yet in products.json)
+- Front/back covers now fully downloaded for all years with products (2000–2013 covered via Dragon/Dungeon/4e batches)
 - Years with no products (skip): 2009–2011
 
 ### Dragon Magazine covers (ids 1042–1471)
@@ -117,9 +117,22 @@ sourced from `cf.geekdo-images.com` URLs (BoardGameGeek); no back covers exist i
 - 20 front covers already present locally (ids 1069, 1091, 1095, 1096, 1107, 1146, 1148, 1150–1153, 1155, 1159, 1160, 1170, 1192, 1195, 1197, 1200, 1204); auto-picked up by convert_csv.py
 - Remaining ~410 magazine covers need downloading via `download_covers.py <year>` for each year 1976–2013
 - Years 1976–1999: magazines overlap with fully-downloaded product years; existing product files are skipped automatically, only magazine covers are fetched
-- Years 2000–2007: Dragon is now the only product type in products.json for these years (D&D 3e/3.5 era WotC products not yet imported)
-- Years 2008–2013: magazines alongside the already-downloaded WotC product covers
+- Years 2000–2007: Dragon magazines overlap with Dungeon magazines for these years
+- Years 2008–2013: magazines alongside the D&D 4e product covers
 - Magazine `setting` is always `"Various"` — they are not setting-specific publications
+
+### Dungeon Magazine covers (ids 1472–1692)
+221 magazine issues added (Dungeon #1 through Dungeon #221, 1986–2013). Cover images
+sourced from `cf.geekdo-images.com` URLs (BoardGameGeek); no back covers exist in covers.csv.
+- Systems span AD&D 1e (early issues), AD&D 2e, D&D 3e, D&D 3.5, D&D 4e (digital era)
+- Magazine `setting` is always `"Various"`
+- All front covers downloadable via `download_covers.py <year>` for each year 1986–2013
+
+### D&D 4e product covers (ids 1693–1903)
+134 non-magazine D&D 4e products (2007–2013): hardcovers, adventures, accessories, boxed sets,
+boardgames. Cover images sourced from `https://www.tsrarchive.com/4e/` URLs; no back covers.
+- Publisher: WotC exclusively
+- All front covers downloadable via `download_covers.py <year>` for years 2007–2013
 
 ## Running Locally
 Open `index.html` via a local server (required — `fetch()` won't work over `file://`):
