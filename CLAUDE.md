@@ -7,13 +7,13 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 ## Architecture
 - **index.html** — Main SPA: HTML, CSS, and JavaScript in one file (no build step); links `common.css` and `utils.js`
 - **search.html** — Search/filter page: pill toggles for type/system/setting/publisher, live text search across title/code/authors/artist/blurb, thumbnail grid; clicking a result opens `index.html#id=<N>`; links `common.css` and `utils.js`
-- **spread.html** — Spread viewer: shows front + back covers side by side for a single product; toolbar with Back, Random, and collapsible Details; navigates all products; syncs position with `index.html` via localStorage and `#id=` hash; designed for wide/desktop displays; links `common.css` and `utils.js`
+- **spread.html** — Spread viewer: shows back cover (left) + front cover (right) side by side for a single product; toolbar with Back, Random, and collapsible Details; navigates all products; syncs position with `index.html` via localStorage and `#id=` hash; designed for wide/desktop displays; links `common.css` and `utils.js`
 - **stats.html** — "By the Numbers" statistics page: 5 Chart.js v4 (CDN) visualizations — releases per year (line/area), game systems over time (stacked bar), product type breakdown (doughnut), top campaign settings (horizontal bar), top cover artists (horizontal bar); summary stat cards with scroll-to-chart; standalone page (not yet linked from other pages); links `common.css`
-- **game.html** — "Chrono Covers" mini-game: arrange 5 random cover cards in chronological order; 3 difficulty levels (easy: cross-decade, medium: same decade, hard: 3-year window with month-aware ordering); drag-and-drop + click-to-swap; streak counter persisted in localStorage; links `common.css`
-- **odd1out.html** — "Odd One Out" mini-game: identify which of 4 cover cards doesn't share a common attribute (system, setting, type, artist, decade, publisher); 3 difficulty levels; streak counter; links `common.css`
+- **game.html** — "Chrono Covers" mini-game: arrange 5 random cover cards in chronological order; 3 difficulty levels (easy: cross-decade, medium: same decade, hard: 3-year window with month-aware ordering); drag-and-drop + click-to-swap; streak counter persisted in localStorage; draws rounds from the active search-filter universe (shared via `tsr_active_filters`) — shows a banner with a session-local "Play with all" toggle, and a warn+block panel (per difficulty) when the filtered pool is too small; links `common.css` and `utils.js`
+- **odd1out.html** — "Odd One Out" mini-game: identify which of 5 cover cards doesn't share a common attribute (year, setting, system, type, artist, author); single mode (no difficulty picker); streak counter; draws rounds from the active search-filter universe (shared via `tsr_active_filters`) — same banner + warn+block behavior as game.html; links `common.css` and `utils.js`
 - **debug.html** — Developer tool: shows all 24 fields per product in a 7-product context window (±3 around current); same dark theme; keyboard nav (←/→/Home/End)
-- **common.css** — Shared CSS: design tokens (CSS variables `--bg`, `--bg2`, `--card`, `--border`, `--accent`, `--text`, `--muted`) and error overlay styles; linked by all HTML pages
-- **utils.js** — Shared JS: `FILTERS_KEY`, `MONTH_NAMES`, `TEXT_FIELDS`, `loadActiveFilters()`, `applyFiltersToProducts()`; loaded by index.html, search.html, spread.html
+- **common.css** — Shared CSS: design tokens (CSS variables `--bg`, `--bg2`, `--card`, `--border`, `--accent`, `--text`, `--muted`), error overlay styles, and the game filter banner/warning styles (`.filter-banner`, `.filter-warning`); linked by all HTML pages
+- **utils.js** — Shared JS: `FILTERS_KEY`, `FILTERS_SEEDED_KEY`, `MONTH_NAMES`, `TEXT_FIELDS`, `loadActiveFilters()`, `applyFiltersToProducts()`; also runs a one-time seed on load that defaults the filter to exclude magazines (see search.html internals); loaded by index.html, search.html, spread.html, game.html, odd1out.html
 - **products.json** — Product data consumed by the viewer at runtime via `fetch()`
 - **convert_csv.py** — Python 3 script that regenerates `products.json` from the CSV source
 - **download_covers.py** — Downloads cover images by year into `covers/full/`
@@ -41,6 +41,7 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - Pill counts show total products per value (not filtered count) — they are built once on load
 - Results render as a thumbnail grid (`aspect-ratio: 3/4`, lazy-loaded); clicking a card → `index.html#id=<N>`
 - Filter state is saved to `localStorage` key `tsr_active_filters` (JSON) on every change and restored on load; a "Clear Filters" button removes it
+- **Default (seed-once):** on a browser's first ever visit, `utils.js` seeds `tsr_active_filters` with `exclude_type: ['magazine']` so magazines are hidden by default app-wide (gallery, spread, both games). A `tsr_filters_seeded` marker ensures this happens at most once, so after the first visit the user has full control and "Clear Filters" truly clears (it will not re-add the default)
 - `index.html` and `spread.html` read `tsr_active_filters` on load and navigate only within the filtered product set; position is tracked by product id (`tsr_current_id`) rather than array index
 
 ## Key Conventions
