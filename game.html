@@ -337,6 +337,8 @@
 
   <!-- Game area -->
   <main class="game-area" id="game-area">
+    <div class="filter-banner" id="filter-banner" hidden></div>
+    <div class="filter-warning" id="filter-warning" hidden></div>
     <div class="cards-row" id="cards-row"></div>
     <div class="action-row">
       <button id="btn-check">Check Order</button>
@@ -344,11 +346,15 @@
     <div class="feedback-area" id="feedback-area"></div>
   </main>
 
+  <script src="utils.js"></script>
   <script>
     const STREAK_KEY = 'tsr_game_streak';
     const CARDS_COUNT = 5;
 
     let allProducts = [];
+    let pool = [];           // active universe for round generation (filtered, or all when playAll)
+    let filters = null;      // saved search filters from localStorage
+    let playAll = false;     // session-local: ignore the filter and use the full catalog
     let round = [];
     let displayOrder = [];
     let selectedSlot = null;
@@ -358,6 +364,39 @@
     let gameOver = false;
     let difficulty = 'easy';
     const usedProductIds = new Set();
+
+    // ── Filtered universe ──────────────────────────────────────────────────
+
+    function refreshPool() {
+      pool = playAll ? allProducts : applyFiltersToProducts(allProducts, filters);
+    }
+
+    function renderFilterBanner() {
+      const banner = document.getElementById('filter-banner');
+      const filtered = applyFiltersToProducts(allProducts, filters);
+      const isReduced = filtered.length < allProducts.length;
+      if (!isReduced) { banner.hidden = true; return; }   // no active filter — nothing to show
+      banner.hidden = false;
+      banner.innerHTML = '';
+      const text = document.createElement('span');
+      const btn = document.createElement('button');
+      if (playAll) {
+        text.innerHTML = `Playing all <strong>${allProducts.length}</strong> products`;
+        btn.textContent = `Use my filter (${filtered.length})`;
+      } else {
+        text.innerHTML = `Playing your filtered set — <strong>${pool.length}</strong> products`;
+        btn.textContent = 'Play with all';
+      }
+      btn.addEventListener('click', () => {
+        playAll = !playAll;
+        refreshPool();
+        renderFilterBanner();
+        usedProductIds.clear();
+        startNewRound();
+      });
+      banner.appendChild(text);
+      banner.appendChild(btn);
+    }
 
     // ── Utilities ──────────────────────────────────────────────────────────
 
@@ -761,22 +800,66 @@
     // ── Round lifecycle ────────────────────────────────────────────────────
 
     function startNewRound() {
-      let newRound = pickRound(allProducts);
+      const warning  = document.getElementById('filter-warning');
+      const cardsRow = document.getElementById('cards-row');
+
+      let newRound = pickRound(pool);
       if (!newRound) {
-        // All products exhausted — reset and try again
+        // Pool exhausted — reset used IDs and retry
         usedProductIds.clear();
-        newRound = pickRound(allProducts);
+        newRound = pickRound(pool);
       }
       if (!newRound) {
-        document.getElementById('feedback-area').textContent = 'Not enough data to start a round.';
+        // Can't build a round. If a filter is the cause, warn + block + offer fallback.
+        if (!playAll && pool.length < allProducts.length) {
+          showFilterWarning();
+        } else {
+          warning.hidden = true;
+          cardsRow.style.display = '';
+          document.getElementById('feedback-area').textContent = 'Not enough data to start a round.';
+        }
         return;
       }
+
+      warning.hidden = true;
+      cardsRow.style.display = '';
+      document.querySelector('.action-row').style.display = '';
       round = newRound;
       for (const { product } of round) usedProductIds.add(product.id);
       displayOrder = shuffle([0, 1, 2, 3, 4]);
       // Guard: if accidentally identity permutation, re-shuffle
       if (displayOrder.every((v, i) => v === i)) shuffle(displayOrder);
       renderRound();
+    }
+
+    function showFilterWarning() {
+      const warning  = document.getElementById('filter-warning');
+      document.getElementById('cards-row').style.display = 'none';
+      document.querySelector('.action-row').style.display = 'none';
+      document.getElementById('feedback-area').textContent = '';
+      const diffLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      warning.hidden = false;
+      warning.innerHTML = '';
+      const h = document.createElement('h3');
+      h.textContent = 'Too few products for this round';
+      const p = document.createElement('p');
+      p.innerHTML = `Your filtered set has too few products for <strong>${diffLabel}</strong> mode `
+        + `(<strong>${pool.length}</strong> in pool). Try another difficulty, or play with all products.`;
+      const actions = document.createElement('div');
+      actions.className = 'warning-actions';
+      const btn = document.createElement('button');
+      btn.textContent = 'Play with all products';
+      btn.addEventListener('click', () => {
+        playAll = true;
+        refreshPool();
+        renderFilterBanner();
+        usedProductIds.clear();
+        startNewRound();
+      });
+      actions.appendChild(btn);
+      warning.appendChild(h);
+      warning.appendChild(p);
+      warning.appendChild(actions);
     }
 
     // ── Init ───────────────────────────────────────────────────────────────
@@ -796,6 +879,10 @@
         document.getElementById('loading-screen').classList.add('hidden');
         return;
       }
+
+      filters = loadActiveFilters();
+      refreshPool();
+      renderFilterBanner();
 
       document.getElementById('loading-screen').classList.add('hidden');
       buildCards();

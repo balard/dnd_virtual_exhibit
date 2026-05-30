@@ -5,6 +5,24 @@
  */
 
 const FILTERS_KEY = 'tsr_active_filters';
+const FILTERS_SEEDED_KEY = 'tsr_filters_seeded';
+
+// One-time default: exclude magazines on a user's first ever visit.
+// Runs when this script loads — before any page reads the filter. After the
+// seed, the user has full control and Clear Filters truly clears (the marker
+// prevents re-seeding, so clearing won't silently re-add the default).
+(function seedDefaultFilters() {
+    try {
+        if (localStorage.getItem(FILTERS_SEEDED_KEY)) return;     // already seeded once
+        localStorage.setItem(FILTERS_SEEDED_KEY, '1');
+        if (localStorage.getItem(FILTERS_KEY) != null) return;    // user already has filters
+        localStorage.setItem(FILTERS_KEY, JSON.stringify({
+            type: [], system: [], setting: [], publisher: [], text: '',
+            exclude_type: ['magazine'],
+            exclude_system: [], exclude_setting: [], exclude_publisher: [],
+        }));
+    } catch (e) { /* storage unavailable — ignore */ }
+})();
 
 const MONTH_NAMES = ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'];

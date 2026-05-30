@@ -310,10 +310,13 @@
 
   <!-- Game area -->
   <main class="game-area" id="game-area">
+    <div class="filter-banner" id="filter-banner" hidden></div>
+    <div class="filter-warning" id="filter-warning" hidden></div>
     <div class="cards-row" id="cards-row"></div>
     <div class="feedback-area" id="feedback-area"></div>
   </main>
 
+  <script src="utils.js"></script>
   <script>
     // ── Constants ───────────────────────────────────────────────────────────
 
@@ -339,8 +342,43 @@
     // ── State ───────────────────────────────────────────────────────────────
 
     let allProducts    = [];
+    let pool           = [];      // active universe (filtered, or all when playAll)
+    let filters        = null;    // saved search filters from localStorage
+    let playAll        = false;   // session-local: ignore the filter, use full catalog
     let usedProductIds = new Set();
     let streak         = 0;
+
+    // ── Filtered universe ───────────────────────────────────────────────────
+
+    function refreshPool() {
+      pool = playAll ? allProducts : applyFiltersToProducts(allProducts, filters);
+    }
+
+    function renderFilterBanner() {
+      const banner = document.getElementById('filter-banner');
+      const filtered = applyFiltersToProducts(allProducts, filters);
+      if (filtered.length >= allProducts.length) { banner.hidden = true; return; }
+      banner.hidden = false;
+      banner.innerHTML = '';
+      const text = document.createElement('span');
+      const btn = document.createElement('button');
+      if (playAll) {
+        text.innerHTML = `Playing all <strong>${allProducts.length}</strong> products`;
+        btn.textContent = `Use my filter (${filtered.length})`;
+      } else {
+        text.innerHTML = `Playing your filtered set — <strong>${pool.length}</strong> products`;
+        btn.textContent = 'Play with all';
+      }
+      btn.addEventListener('click', () => {
+        playAll = !playAll;
+        refreshPool();
+        renderFilterBanner();
+        usedProductIds.clear();
+        startNewRound();
+      });
+      banner.appendChild(text);
+      banner.appendChild(btn);
+    }
 
     // currentRound shape:
     // { category: {key, label}, commonValue, oddValue,
@@ -428,7 +466,7 @@
     // ── Round generation ────────────────────────────────────────────────────
 
     function pickRound() {
-      const unusedPool = allProducts.filter(p => !usedProductIds.has(p.id));
+      const unusedPool = pool.filter(p => !usedProductIds.has(p.id));
 
       // Shuffle categories for random selection each call
       const cats = shuffleInPlace(CATEGORIES.slice());
@@ -444,9 +482,9 @@
           ([v, ps]) => ps.length >= MIN_POOL && !EXCLUDED_COMMON.has(v)
         );
 
-        // If unused pool is thin, supplement with full pool
+        // If unused pool is thin, supplement with the full active pool
         if (eligible.length === 0) {
-          valueMap = buildValueMap(allProducts, cat.key);
+          valueMap = buildValueMap(pool, cat.key);
           eligible = [...valueMap.entries()].filter(
             ([v, ps]) => ps.length >= MIN_POOL && !EXCLUDED_COMMON.has(v)
           );
@@ -459,7 +497,7 @@
           // Build odd pool: products with a DIFFERENT value (prefer unused)
           let oddPool = unusedPool.filter(p => getVal(p, cat.key) !== commonValue);
           if (oddPool.length === 0) {
-            oddPool = allProducts.filter(p => getVal(p, cat.key) !== commonValue);
+            oddPool = pool.filter(p => getVal(p, cat.key) !== commonValue);
           }
           if (oddPool.length === 0) continue;
 
@@ -681,6 +719,9 @@
     // ── Round lifecycle ─────────────────────────────────────────────────────
 
     function startNewRound() {
+      const warning  = document.getElementById('filter-warning');
+      const cardsRow = document.getElementById('cards-row');
+
       let roundData = pickRound();
 
       if (!roundData) {
@@ -690,11 +731,20 @@
       }
 
       if (!roundData) {
-        document.getElementById('feedback-area').innerHTML =
-          '<p style="color:#cc5555">Unable to generate a round. Please reload.</p>';
+        // Can't build a round. If a filter is the cause, warn + block + offer fallback.
+        if (!playAll && pool.length < allProducts.length) {
+          showFilterWarning();
+        } else {
+          warning.hidden = true;
+          cardsRow.style.display = '';
+          document.getElementById('feedback-area').innerHTML =
+            '<p style="color:#cc5555">Unable to generate a round. Please reload.</p>';
+        }
         return;
       }
 
+      warning.hidden = true;
+      cardsRow.style.display = '';
       currentRound   = roundData;
       triesThisRound = 0;
       roundOver      = false;
@@ -706,6 +756,34 @@
       }
 
       renderRound();
+    }
+
+    function showFilterWarning() {
+      const warning = document.getElementById('filter-warning');
+      document.getElementById('cards-row').style.display = 'none';
+      document.getElementById('feedback-area').innerHTML = '';
+      warning.hidden = false;
+      warning.innerHTML = '';
+      const h = document.createElement('h3');
+      h.textContent = 'Too few products for a round';
+      const p = document.createElement('p');
+      p.innerHTML = `Your filtered set (<strong>${pool.length}</strong> products) doesn't have `
+        + `enough covers sharing a common trait to build a round. Widen your filter, or play with all products.`;
+      const actions = document.createElement('div');
+      actions.className = 'warning-actions';
+      const btn = document.createElement('button');
+      btn.textContent = 'Play with all products';
+      btn.addEventListener('click', () => {
+        playAll = true;
+        refreshPool();
+        renderFilterBanner();
+        usedProductIds.clear();
+        startNewRound();
+      });
+      actions.appendChild(btn);
+      warning.appendChild(h);
+      warning.appendChild(p);
+      warning.appendChild(actions);
     }
 
     // ── Init ────────────────────────────────────────────────────────────────
@@ -725,6 +803,10 @@
         document.getElementById('loading-screen').classList.add('hidden');
         return;
       }
+
+      filters = loadActiveFilters();
+      refreshPool();
+      renderFilterBanner();
 
       document.getElementById('loading-screen').classList.add('hidden');
       buildCards();
