@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="fav_icon.png">
-    <title>TSR Virtual Exhibt — Cover Gallery</title>
+    <title>TSR Virtual Exhibit — Cover Gallery</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="common.css">
@@ -572,8 +572,8 @@
 
     <div id="splash-overlay">
         <div class="splash-box">
-            <h2>TSR Products Virtual Exhibit </h2>
-            <p class="splash-sub">Browse 900+ cover in chronological order of release, images from D&amp;D, AD&amp;D, 3e &mdash; 1974 to 2013</p>
+            <h2>TSR Products Virtual Exhibit</h2>
+            <p class="splash-sub">Browse <span id="splash-count">hundreds of</span> covers in chronological order of release, from D&amp;D, AD&amp;D, 3e and 4e &mdash; 1974 to 2013</p>
             <ul class="splash-controls">
                 <li><span class="key">&#8592; &#8594;</span> Browse products</li>
                 <li><span class="key">Click cover</span> Left / right halves also navigate and flips</li>
@@ -783,10 +783,11 @@
                 indicator.style.display = 'none';
                 return;
             }
-            const hasAny = (filters.type    && filters.type.length)
-                        || (filters.system  && filters.system.length)
-                        || (filters.setting && filters.setting.length)
-                        || filters.text;
+            const len = k => Array.isArray(filters[k]) ? filters[k].length : 0;
+            const hasAny = len('type') || len('system') || len('setting') || len('publisher')
+                        || len('exclude_type') || len('exclude_system')
+                        || len('exclude_setting') || len('exclude_publisher')
+                        || (filters.text && filters.text.length);
             if (!hasAny) {
                 indicator.style.display = 'none';
                 return;
@@ -874,6 +875,10 @@
                 btnSize.textContent = 'Fit';
                 btnSize.classList.add('active');
             }
+
+            // Fill the splash count once, so the first-visit splash and the
+            // help button (which reuse the same overlay) always match.
+            document.getElementById('splash-count').textContent = allProducts.length.toLocaleString();
 
             // Welcome splash — show only on first visit (no hash and not seen before)
             if (!location.hash && !localStorage.getItem('tsr_splash_seen')) {
