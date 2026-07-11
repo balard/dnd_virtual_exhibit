@@ -8,7 +8,7 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - **index.html** — Main SPA: HTML, CSS, and JavaScript in one file (no build step); links `common.css` and `utils.js`
 - **search.html** — Search/filter page: pill toggles for type/system/setting/publisher, live text search across title/code/authors/artist/blurb, thumbnail grid; clicking a result opens `index.html#id=<N>`; links `common.css` and `utils.js`
 - **spread.html** — Spread viewer: shows back cover (left) + front cover (right) side by side for a single product; toolbar with Back, Random, and collapsible Details; navigates all products; syncs position with `index.html` via localStorage and `#id=` hash; designed for wide/desktop displays; links `common.css` and `utils.js`
-- **stats.html** — "By the Numbers" statistics page: 5 Chart.js v4 (CDN) visualizations — releases per year stacked by publisher (area), game systems over time (stacked bar, includes D&D 4e), product types (horizontal bar, types under 10 products collapse into `Other`), top campaign settings (horizontal bar, excludes magazines' `Various` and null), top cover artists (horizontal bar); summary stat cards (Products, Year Range, Publishers, Settings, Cover Artists) with scroll-to-chart; **filter-aware** — defaults to the full collection but has a header toggle (`Full collection` / `Current filter`) that re-renders all charts against `applyFiltersToProducts(...)`; the `Current filter` button is disabled when no filter is active; linked from `index.html` control bar; links `common.css` and `utils.js`
+- **stats.html** — "By the Numbers" statistics page: 5 Chart.js v4 (CDN) visualizations — releases per year stacked by publisher (area), game systems over time (stacked bar, includes D&D 4e), product types (horizontal bar, types under 10 products collapse into `Other`), top campaign settings (horizontal bar, excludes magazines' `Various` and null), top cover artists (horizontal bar); the **settings and artists bars are colored by a hue distilled from each group's actual covers** — a header `Bar color` toggle switches the aggregation method (`Punch-up` = averaged cover color with saturation floored + lightness banded for vividness; `Dominant` = mean of each cover's dominant swatch; `Faithful` = raw averaged color, only lightened enough to stay visible), reading per-product colors from `covers/cover_colors.json` and degrading gracefully to the old flat colors (toggle disabled) if that file is absent; summary stat cards (Products, Year Range, Publishers, Settings, Cover Artists) with scroll-to-chart; **filter-aware** — defaults to the full collection but has a header toggle (`Full collection` / `Current filter`) that re-renders all charts against `applyFiltersToProducts(...)`; the `Current filter` button is disabled when no filter is active; linked from `index.html` control bar; fetches `products.json` and `covers/cover_colors.json`; links `common.css` and `utils.js`
 - **game.html** — "Chrono Covers" mini-game: arrange 5 random cover cards in chronological order; 3 difficulty levels (easy: cross-decade, medium: same decade, hard: 3-year window with month-aware ordering); drag-and-drop + click-to-swap; streak counter persisted in localStorage; draws rounds from the active search-filter universe (shared via `tsr_active_filters`) — shows a banner with a session-local "Play with all" toggle, and a warn+block panel (per difficulty) when the filtered pool is too small; links `common.css` and `utils.js`
 - **odd1out.html** — "Odd One Out" mini-game: identify which of 5 cover cards doesn't share a common attribute (year, setting, system, type, artist, author); single mode (no difficulty picker); streak counter; draws rounds from the active search-filter universe (shared via `tsr_active_filters`) — same banner + warn+block behavior as game.html; links `common.css` and `utils.js`
 - **debug.html** — Developer tool: shows all 24 fields per product in a 7-product context window (±3 around current); same dark theme; keyboard nav (←/→/Home/End)
@@ -20,6 +20,8 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - **covers/full/** — Local image files: front covers named `{id}.{ext}`, back covers named `{id}-back.{ext}`; served via GitHub Pages
 - **covers/thumb/** — 300px-wide JPEG thumbnails generated from `covers/full/`; used by `search.html` and `game.html`
 - **generate_thumbs.py** — Python 3 script that generates `covers/thumb/` from `covers/full/` (requires Pillow)
+- **generate_colors.py** — Python 3 script (requires Pillow) that distills a representative color from each **front** cover thumbnail and writes `covers/cover_colors.json`
+- **covers/cover_colors.json** — Generated sidecar keyed by product id: `{ "<id>": {"avg": "#rrggbb", "dom": "#rrggbb"} }` (`avg` = overall average color, `dom` = dominant swatch); consumed by `stats.html` to color the settings/artists bars
 - **../tsr_products/tsr_products.csv** — Master product table (19 cols: id through semester, includes publisher; no cover_url)
 - **../tsr_products/covers.csv** — Cover URLs (3 cols: id, cover_url, backcover_url)
 - **../tsr_products/blurbs.csv** — Product blurb text (2 cols: id, blurb; QUOTE_ALL)
@@ -79,6 +81,7 @@ Output:
 1. `python download_covers.py <year>`
 2. `python convert_csv.py` ← regenerate JSON; local paths are picked up automatically
 3. `python generate_thumbs.py <start_id> <end_id>` ← generate thumbnails for the new products
+4. `python generate_colors.py <start_id> <end_id>` ← distill cover colors into `covers/cover_colors.json` (runs after thumbnails)
 
 ## generate_thumbs.py internals
 - Reads `covers/full/` (`.jpg`/`.jpeg`, case-insensitive) and writes 300px-wide JPEGs to `covers/thumb/`
@@ -86,6 +89,13 @@ Output:
 - Idempotent — existing files are skipped
 - Optional ID range: `python generate_thumbs.py <start_id> <end_id>`
 - `search.html` and `game.html` derive thumb URLs via `cover_url.replace('/full/', '/thumb/')`
+
+## generate_colors.py internals
+- Reads the thumbnails in `covers/thumb/` (**front covers only** — skips `*-back.jpg`) and writes `covers/cover_colors.json`
+- Per cover: `avg` = overall average color (1×1 box downsample); `dom` = most-frequent quantized swatch, skipping near-black/near-white/near-grey entries (falls back to `avg`)
+- Idempotent + mergeable — ids already present in the JSON are skipped; `--force` recomputes; optional ID range `python generate_colors.py <start_id> <end_id>`
+- Uses Pillow (`pip install Pillow`)
+- Run **after** `generate_thumbs.py` (it consumes the thumbnails); the three per-group display variants (punch-up / dominant / faithful) are derived in `stats.html` from these two raw colors
 
 ## download_covers.py internals
 - Reads `products.json` to filter products by year
