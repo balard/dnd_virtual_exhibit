@@ -266,6 +266,46 @@
     // their hue regardless of how the active filter changes the counts.
     const PUBLISHER_COLORS = { 'TSR': '#c9a227', 'WotC': '#4a9eff', 'Paizo': '#e06c75' };
 
+    // Baked cover-derived bar colors (Vibrant method): each setting / artist
+    // colored by the most saturated art of its covers, saturation-weighted and
+    // averaged over the FULL collection so the hue follows the entity, not the
+    // filtered rank. Artists are baked down to those with >= 5 covers (the rest
+    // never reach a top-12 bar); anything unlisted falls back to a blended tone.
+    const SETTING_COLORS = {
+        'Greyhawk': '#b77250', 'Blackmoor': '#78ad47', 'Mystara': '#a75e44', 'Ravenloft': '#a75c44',
+        'Celtic': '#d7a85b', 'Dragonlance': '#a76844', 'Conan': '#a74644',
+        'Forgotten Realms': '#a76c44', 'Kara-Tur': '#a75f44', 'Lankhmar': '#ae673d',
+        'Planescape': '#a75844', 'Spelljammer': '#b56c4a', 'Dark Sun': '#bd9058',
+        'Thunder Rift': '#a76044', 'Al-Qadim': '#b87750', 'Mystara (2E)': '#a75a44',
+        'Birthright': '#a77d44', 'Diablo': '#a75344', 'Chainmail': '#92a744', 'Eberron': '#a75e44',
+        'Points of Light': '#a76844'
+    };
+
+    const ARTIST_COLORS = {
+        'David C. Sutherland III': '#c4956e', 'Erol Otus': '#c47a6e', 'David A. Trampier': '#c4b36e',
+        'Dean Morrissey': '#a77244', 'Jennell Jaquays': '#a3a744', 'Phil Foglio': '#bf9a63',
+        'Jim Roslof': '#a74f44', 'Tim Hildebrandt': '#c4815b', 'Clyde Caldwell': '#a76944',
+        'Jack Crane': '#c4a76e', 'Tim Truman': '#a84544', 'Jim Holloway': '#c09465',
+        'Larry Elmore': '#a76a44', 'Jeff Easley': '#a76944', 'Keith Parkinson': '#a76a44',
+        'Denis Beauvais': '#a7444c', 'Brian Williams': '#a74486', 'NOT FOUND': '#44a792',
+        'Robin Wood': '#a75344', 'Daniel Horne': '#bf8962', 'Roger Raupp': '#bba459',
+        'John and Laura Lakey': '#bdb05e', 'Paul Jaquays': '#a76044', 'Fred Fields': '#a76a44',
+        'Carol Heyer': '#c09565', 'Roger Loveless': '#a0b54a', 'Brom': '#b77e4e',
+        'Scott Burdick': '#a75644', 'Tom Baxa': '#b08f48', 'Robh Ruppel': '#a75d44',
+        'David O. Miller': '#a75544', 'Dana Knutson': '#aa7846', 'Mark Nelson': '#b98953',
+        'Alan Pollack': '#a75444', 'Tony DiTerlizzi': '#c18b66', 'William O\'Connor': '#a77644',
+        'Tony Szczudlo': '#a77e44', 'Stephen A. Daniele': '#a77344', 'Todd Lockwood': '#aa6d46',
+        'rk post': '#a7444b', 'Wayne Reynolds': '#a76b44', 'Arnie Swekel': '#b7884e',
+        'Mark Zug': '#c3966c', 'Henry Higginbotham': '#a75544', 'Marc Sasso': '#a77044',
+        'Sam Wood': '#b38449', 'Jason A. Engle': '#a77744', 'Raven Mimura': '#b45637',
+        'Matt Cavotta': '#a77444', 'Dan Scott': '#a86945', 'James Ryman': '#c29b6a',
+        'Howard Lyon': '#a76a44', 'Steve Prescott': '#a76344', 'David Hudnut': '#a77244',
+        'Andrew Hou': '#c4aa6e', 'Francis Tsai': '#ad683e', 'Jason Engle': '#94a744',
+        'Ralph Horsley': '#a76144', 'Michael Komarck': '#aa6f41', 'William O’Connor': '#aa5f41',
+        'Chris Seaman': '#449ca7', 'Jesper Ejsing': '#4466a7', 'Kerem Beyit': '#aa8d46',
+        'Tyler Jacobson': '#a86545', 'Craig J. Spearing': '#a75644', 'Eric Belisle': '#ac6e3e'
+    };
+
     /* ── Chart.js global dark-theme defaults ───────────────── */
 
     Chart.defaults.color = '#e8e8e8';
@@ -567,7 +607,7 @@
                 datasets: [{
                     label: 'Products',
                     data: settingEntries.map(function (e) { return e[1]; }),
-                    backgroundColor: '#98c379',
+                    backgroundColor: settingEntries.map(function (e) { return SETTING_COLORS[e[0]] || '#98c379'; }),
                     borderWidth: 0,
                     borderRadius: 3
                 }]
@@ -599,7 +639,7 @@
                 datasets: [{
                     label: 'Covers',
                     data: artistEntries.map(function (e) { return e[1]; }),
-                    backgroundColor: '#e8b960',
+                    backgroundColor: artistEntries.map(function (e) { return ARTIST_COLORS[e[0]] || '#a76c44'; }),
                     borderWidth: 0,
                     borderRadius: 3
                 }]
