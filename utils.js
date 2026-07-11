@@ -42,6 +42,21 @@ function loadActiveFilters() {
 }
 
 /**
+ * True if the filter object has any active criterion (any of the 9 keys).
+ * Drives filter-indicator visibility independently of whether the filter
+ * actually reduces the product count (a filter can be active yet non-reducing,
+ * e.g. excluding a value no product has).
+ */
+function filtersActive(filters) {
+    if (!filters) return false;
+    const len = k => Array.isArray(filters[k]) ? filters[k].length : 0;
+    return !!(len('type') || len('system') || len('setting') || len('publisher')
+           || len('exclude_type') || len('exclude_system')
+           || len('exclude_setting') || len('exclude_publisher')
+           || (filters.text && filters.text.length));
+}
+
+/**
  * Filter a products array using the persisted filter object (arrays, not Sets).
  * @param {Array}  all     - Full products array
  * @param {Object} filters - Saved filter state from localStorage (or null for no filter)

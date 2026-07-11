@@ -519,14 +519,16 @@
             // Apply saved filters
             const savedFilters = loadActiveFilters();
             products = applyFiltersToProducts(allProducts, savedFilters);
+            let effectiveFilters = savedFilters;
             if (products.length === 0) {
                 products = allProducts;
                 localStorage.removeItem(FILTERS_KEY);
+                effectiveFilters = null;
             }
 
-            // Show filter badge if filters are active
+            // Show filter badge if a filter is active (even if it doesn't reduce the count)
             const filterBadge = document.getElementById('filter-badge');
-            if (filterBadge && products.length < allProducts.length) {
+            if (filterBadge && filtersActive(effectiveFilters)) {
                 filterBadge.textContent = products.length + ' filtered';
                 filterBadge.style.display = '';
             }

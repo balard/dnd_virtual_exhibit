@@ -783,12 +783,7 @@
                 indicator.style.display = 'none';
                 return;
             }
-            const len = k => Array.isArray(filters[k]) ? filters[k].length : 0;
-            const hasAny = len('type') || len('system') || len('setting') || len('publisher')
-                        || len('exclude_type') || len('exclude_system')
-                        || len('exclude_setting') || len('exclude_publisher')
-                        || (filters.text && filters.text.length);
-            if (!hasAny) {
+            if (!filtersActive(filters)) {
                 indicator.style.display = 'none';
                 return;
             }
@@ -838,9 +833,11 @@
             // Apply saved filters (from search.html)
             const savedFilters = loadActiveFilters();
             products = applyFiltersToProducts(allProducts, savedFilters);
+            let effectiveFilters = savedFilters;
             if (products.length === 0) {
                 products = allProducts;
                 localStorage.removeItem(FILTERS_KEY);
+                effectiveFilters = null;
             }
 
             viewer.style.display = '';
@@ -848,7 +845,7 @@
             document.getElementById('scrubber-year-start').textContent = products[0].year ?? '';
             document.getElementById('scrubber-year-end').textContent = products[products.length - 1].year ?? '';
             buildNav();
-            updateFilterIndicator(products.length === allProducts.length ? null : savedFilters);
+            updateFilterIndicator(effectiveFilters);
 
             // Restore position by product id
             const savedId = parseInt(localStorage.getItem('tsr_current_id'));
