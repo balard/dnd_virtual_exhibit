@@ -217,6 +217,7 @@
             <button id="col-punch" class="active" type="button" title="Averaged cover color, hue kept but boosted into a vivid, readable band">Punch-up</button>
             <button id="col-dominant" type="button" title="Each cover's dominant swatch, averaged across the group">Dominant</button>
             <button id="col-faithful" type="button" title="Raw averaged cover color, lightened only enough to stay visible">Faithful</button>
+            <button id="col-vibrant" type="button" title="Most saturated color of each cover's central art (frame/logo cropped out), saturation-weighted across the group">Vibrant</button>
         </div>
     </div>
     <a href="index.html" class="btn-back">&#8592; Gallery</a>
@@ -379,18 +380,22 @@
     // Returns null if no member has a color (caller falls back to a flat color).
     function groupColor(ids, method) {
         if (!coverColors || !ids || !ids.length) return null;
-        var key = (method === 'dominant') ? 'dom' : 'avg';
-        var sr = 0, sg = 0, sb = 0, n = 0;
+        var key = (method === 'dominant') ? 'dom' : (method === 'vibrant') ? 'vib' : 'avg';
+        // Vibrant weights each cover by its own saturation so vivid art drives
+        // the group color and washed-out covers fade; the others weight evenly.
+        var weighted = (method === 'vibrant');
+        var sr = 0, sg = 0, sb = 0, wsum = 0;
         ids.forEach(function (id) {
             var c = coverColors[id];
             if (!c || !c[key]) return;
             var rgb = hexToRgb(c[key]);
-            sr += rgb[0]; sg += rgb[1]; sb += rgb[2]; n++;
+            var w = weighted ? (rgbToHsl(rgb[0], rgb[1], rgb[2])[1] + 0.05) : 1;
+            sr += rgb[0] * w; sg += rgb[1] * w; sb += rgb[2] * w; wsum += w;
         });
-        if (!n) return null;
+        if (!wsum) return null;
 
-        var hsl = rgbToHsl(sr / n, sg / n, sb / n);
-        if (method === 'punch') {
+        var hsl = rgbToHsl(sr / wsum, sg / wsum, sb / wsum);
+        if (method === 'punch' || method === 'vibrant') {
             hsl[1] = Math.max(hsl[1], 0.42);   // floor saturation so the hue reads
             hsl[2] = clamp(hsl[2], 0.46, 0.60); // band lightness for punch + contrast
         } else {
@@ -459,7 +464,7 @@
 
     /* ── Cover-color method toggle ──────────────────────────── */
 
-    var COLOR_BTNS = { 'col-punch': 'punch', 'col-dominant': 'dominant', 'col-faithful': 'faithful' };
+    var COLOR_BTNS = { 'col-punch': 'punch', 'col-dominant': 'dominant', 'col-faithful': 'faithful', 'col-vibrant': 'vibrant' };
 
     function initColorToggle() {
         Object.keys(COLOR_BTNS).forEach(function (bid) {

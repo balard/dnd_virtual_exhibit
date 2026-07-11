@@ -5,12 +5,15 @@ generate_colors.py — Distill a representative color from each front cover.
 Reads the 300px thumbnails in covers/thumb/ (front covers only, ignoring
 '*-back.jpg') and writes covers/cover_colors.json, a map keyed by product id:
 
-    { "1": {"avg": "#rrggbb", "dom": "#rrggbb"}, ... }
+    { "1": {"avg": "#rrggbb", "dom": "#rrggbb", "vib": "#rrggbb"}, ... }
 
   avg — the cover's overall average color (1x1 box downsample).
   dom — the cover's dominant color: the most frequent swatch after quantizing,
         skipping near-black / near-white / near-grey entries so the result is
         characterful rather than a muddy background tone. Falls back to avg.
+  vib — the cover's vibrant art color: the most saturated prominent swatch of
+        the inner CROP_FRAC of the cover, so the frame / logo / title bands at
+        the edges don't drown out the central art. Falls back to the crop's avg.
 
 stats.html consumes this file and aggregates per setting / per artist.
 
@@ -40,6 +43,11 @@ QUANTIZE_COLORS = 8   # palette size to reduce each cover to
 NEAR_BLACK = 28       # discard swatches whose max channel is below this
 NEAR_WHITE = 228      # discard swatches whose min channel is above this
 MIN_CHROMA = 18       # discard near-grey swatches (max-min channel spread)
+
+# Vibrant-color extraction: sample only the inner CROP_FRAC of the cover so
+# the frame / logo / title / author bands (all at the edges) don't dominate,
+# then favour the most saturated prominent swatch of the central art.
+CROP_FRAC = 0.6
 
 
 def extract_id(filename: str) -> int | None:
@@ -78,6 +86,54 @@ def dominant_color(img: "Image.Image", fallback: tuple) -> tuple:
         return (r, g, b)
 
     return fallback
+
+
+def saturation(rgb) -> float:
+    """HSL saturation of an RGB triple, 0..1."""
+    r, g, b = (c / 255 for c in rgb[:3])
+    hi, lo = max(r, g, b), min(r, g, b)
+    if hi == lo:
+        return 0.0
+    d = hi - lo
+    l = (hi + lo) / 2
+    return d / (2 - hi - lo) if l > 0.5 else d / (hi + lo)
+
+
+def center_crop(img: "Image.Image", frac: float) -> "Image.Image":
+    """Return the centered inner `frac` box of the image."""
+    w, h = img.size
+    cw, ch = max(1, int(w * frac)), max(1, int(h * frac))
+    left, top = (w - cw) // 2, (h - ch) // 2
+    return img.crop((left, top, left + cw, top + ch))
+
+
+def vibrant_color(img: "Image.Image", fallback: tuple) -> tuple:
+    """Most saturated *prominent* swatch of the cover's central art.
+
+    Crops to the inner CROP_FRAC (dropping frames / logos / text bands), then
+    picks the quantized swatch maximizing count x saturation, skipping
+    black/white/grey. Falls back to the crop's average if nothing qualifies.
+    """
+    crop = center_crop(img, CROP_FRAC)
+    crop_avg = average_color(crop)
+
+    pal_img = crop.quantize(colors=QUANTIZE_COLORS)
+    palette = pal_img.getpalette()
+    counts = pal_img.getcolors()
+    if not counts:
+        return crop_avg if crop_avg is not None else fallback
+
+    best, best_score = None, 0.0
+    for count, idx in counts:
+        r, g, b = palette[idx * 3: idx * 3 + 3]
+        hi, lo = max(r, g, b), min(r, g, b)
+        if hi < NEAR_BLACK or lo > NEAR_WHITE or (hi - lo) < MIN_CHROMA:
+            continue
+        score = count * saturation((r, g, b))
+        if score > best_score:
+            best, best_score = (r, g, b), score
+
+    return best if best is not None else crop_avg
 
 
 def main():
@@ -121,12 +177,14 @@ def main():
     else:
         print(f"Processing all front covers: {len(files)} found")
 
+    EXPECTED_KEYS = ("avg", "dom", "vib")
     computed = 0
     skipped = 0
     total = len(files)
 
     for i, (pid, src_path) in enumerate(files, 1):
-        if not args.force and str(pid) in colors:
+        existing = colors.get(str(pid))
+        if not args.force and existing and all(k in existing for k in EXPECTED_KEYS):
             skipped += 1
             continue
 
@@ -135,13 +193,14 @@ def main():
                 img = img.convert("RGB")
                 avg = average_color(img)
                 dom = dominant_color(img, avg)
+                vib = vibrant_color(img, avg)
         except OSError as e:
             print(f"  skip [{i}/{total}] {src_path.name} (unreadable: {e})")
             skipped += 1
             continue
 
-        colors[str(pid)] = {"avg": to_hex(avg), "dom": to_hex(dom)}
-        print(f"  [{i}/{total}] {src_path.name} -> avg {to_hex(avg)}  dom {to_hex(dom)}")
+        colors[str(pid)] = {"avg": to_hex(avg), "dom": to_hex(dom), "vib": to_hex(vib)}
+        print(f"  [{i}/{total}] {src_path.name} -> avg {to_hex(avg)}  dom {to_hex(dom)}  vib {to_hex(vib)}")
         computed += 1
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
