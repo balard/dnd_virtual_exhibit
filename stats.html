@@ -62,6 +62,7 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             overflow: hidden;
+            flex-shrink: 0;   /* never collapse to a thin line when the header is tight */
         }
         .source-toggle button {
             background: var(--card);
@@ -167,6 +168,7 @@
         /* ── Responsive ──────────────────────────────────────────── */
 
         @media (max-width: 600px) {
+            .page-header { flex-wrap: wrap; gap: 0.6rem 1rem; }
             .stats-main { padding: 1rem; }
             .stat-card { flex: 1 1 100px; padding: 0.75rem; }
             .stat-card .num { font-size: 1.2rem; }
