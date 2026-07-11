@@ -214,8 +214,8 @@
     <div class="color-toggle-wrap">
         <span class="color-toggle-label">Bar color</span>
         <div class="source-toggle" id="color-toggle" role="group" aria-label="Cover-color method for the Settings &amp; Artists bars">
-            <button id="col-punch" class="active" type="button" title="Averaged cover color, hue kept but boosted into a vivid, readable band">Punch-up</button>
-            <button id="col-dominant" type="button" title="Each cover's dominant swatch, averaged across the group">Dominant</button>
+            <button id="col-punch" type="button" title="Averaged cover color, hue kept but boosted into a vivid, readable band">Punch-up</button>
+            <button id="col-dominant" class="active" type="button" title="Each cover's dominant swatch, averaged across the group">Dominant</button>
             <button id="col-faithful" type="button" title="Raw averaged cover color, lightened only enough to stay visible">Faithful</button>
             <button id="col-vibrant" type="button" title="Most saturated color of each cover's central art (frame/logo cropped out), saturation-weighted across the group">Vibrant</button>
         </div>
@@ -411,7 +411,7 @@
     var coverColors = null;      // { id: {avg, dom} } sidecar, or null if unavailable
     var charts = [];             // live Chart instances, destroyed on re-render
     var mode = 'all';            // 'all' | 'filtered'
-    var colorMethod = 'punch';   // 'punch' | 'dominant' | 'faithful'
+    var colorMethod = 'dominant';   // 'punch' | 'dominant' | 'faithful' | 'vibrant'
 
     /* ── Data load ──────────────────────────────────────────── */
 
