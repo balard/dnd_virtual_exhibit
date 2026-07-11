@@ -55,6 +55,35 @@
         }
         .btn-back:hover { background: var(--accent); color: var(--bg); }
 
+        /* ── Data-source toggle ──────────────────────────────────── */
+
+        .source-toggle {
+            display: inline-flex;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .source-toggle button {
+            background: var(--card);
+            color: var(--muted);
+            border: none;
+            padding: 0.35rem 0.7rem;
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 0.7rem;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+        .source-toggle button + button { border-left: 1px solid var(--border); }
+        .source-toggle button.active { background: var(--accent); color: var(--bg); }
+        .source-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .source-caption {
+            font-size: 0.72rem;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
         /* ── Main content ────────────────────────────────────────── */
 
         .stats-main {
@@ -158,6 +187,11 @@
 
 <header class="page-header">
     <h1>By the Numbers</h1>
+    <div class="source-toggle" id="source-toggle" role="group" aria-label="Data source">
+        <button id="src-all" class="active" type="button">Full collection</button>
+        <button id="src-filtered" type="button">Current filter</button>
+    </div>
+    <span class="source-caption" id="source-caption"></span>
     <a href="index.html" class="btn-back">&#8592; Gallery</a>
 </header>
 
@@ -168,8 +202,8 @@
 
     <!-- Chart 1: Releases per year -->
     <section class="chart-section" id="sec-timeline">
-        <h2>Releases Per Year</h2>
-        <p class="desc">The rise and fall of TSR's publishing output — from the first boxed set in 1974 through the WotC transition and the 3rd Edition era.</p>
+        <h2>Releases Per Year, by Publisher</h2>
+        <p class="desc">The rise and fall of output from 1974 onward, stacked by publisher — TSR's long run, the WotC takeover in 1997, and Paizo's licensed magazine years (2002&ndash;2007).</p>
         <div class="chart-box">
             <canvas id="chart-timeline"></canvas>
         </div>
@@ -178,7 +212,7 @@
     <!-- Chart 2: System over time -->
     <section class="chart-section" id="sec-systems">
         <h2>Game Systems Over Time</h2>
-        <p class="desc">How each edition dominated its era — OD&amp;D gave way to Basic and AD&amp;D 1e, then AD&amp;D 2e ruled the 90s before 3rd Edition arrived.</p>
+        <p class="desc">How each edition dominated its era — OD&amp;D gave way to Basic and AD&amp;D 1e, AD&amp;D 2e ruled the 90s, then 3rd Edition, 3.5, and finally 4th Edition carried the WotC years.</p>
         <div class="chart-box">
             <canvas id="chart-systems"></canvas>
         </div>
@@ -187,8 +221,8 @@
     <!-- Chart 3: Product types -->
     <section class="chart-section" id="sec-types">
         <h2>Product Types</h2>
-        <p class="desc">What kind of products were published? Adventures, sourcebooks, boxed sets, and more.</p>
-        <div class="chart-box" style="max-width: 480px; margin: 0 auto;">
+        <p class="desc">What kind of products were published — magazines, adventures, accessories, hardcovers, boxed sets, and the rare boardgames and miniatures.</p>
+        <div class="chart-box">
             <canvas id="chart-types"></canvas>
         </div>
     </section>
@@ -213,17 +247,22 @@
 
 </main>
 
+<script src="utils.js"></script>
 <script>
 (function () {
     'use strict';
 
-    /* ── Color palette ─────────────────────────────────────── */
+    /* ── Color palette (categorical — fixed order, never cycled) ── */
 
     const C = [
         '#c9a227', '#4a9eff', '#e06c75', '#98c379',
         '#7c5cbf', '#56b6c2', '#d19a66', '#c678dd',
         '#e8b960', '#a67c00'
     ];
+
+    // Colour follows the entity, not its rank — publishers & systems keep
+    // their hue regardless of how the active filter changes the counts.
+    const PUBLISHER_COLORS = { 'TSR': '#c9a227', 'WotC': '#4a9eff', 'Paizo': '#e06c75' };
 
     /* ── Chart.js global dark-theme defaults ───────────────── */
 
@@ -253,39 +292,103 @@
         return limit ? entries.slice(0, limit) : entries;
     }
 
-    /* ── Data load & build ─────────────────────────────────── */
+    /* ── State ──────────────────────────────────────────────── */
+
+    var allProducts = null;      // full collection, loaded once
+    var charts = [];             // live Chart instances, destroyed on re-render
+    var mode = 'all';            // 'all' | 'filtered'
+
+    /* ── Data load ──────────────────────────────────────────── */
 
     fetch('products.json')
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(function (products) { build(products); })
+        .then(function (products) { allProducts = products; initToggle(); render(); })
         .catch(function () { document.getElementById('error-overlay').classList.add('visible'); });
 
-    function build(products) {
+    /* ── Data-source toggle ─────────────────────────────────── */
 
-        /* ── Summary cards ─────────────────────────────────── */
+    function currentDataset() {
+        if (mode === 'filtered') {
+            return applyFiltersToProducts(allProducts, loadActiveFilters());
+        }
+        return allProducts;
+    }
 
+    function initToggle() {
+        var hasFilter = filtersActive(loadActiveFilters());
+        var btnFiltered = document.getElementById('src-filtered');
+        btnFiltered.disabled = !hasFilter;
+        if (!hasFilter) btnFiltered.title = 'No active filter — set one in Search';
+
+        document.getElementById('src-all').addEventListener('click', function () { setMode('all'); });
+        btnFiltered.addEventListener('click', function () {
+            if (!btnFiltered.disabled) setMode('filtered');
+        });
+    }
+
+    function setMode(m) {
+        if (m === mode) return;
+        mode = m;
+        document.getElementById('src-all').classList.toggle('active', m === 'all');
+        document.getElementById('src-filtered').classList.toggle('active', m === 'filtered');
+        render();
+    }
+
+    /* ── Render orchestration ───────────────────────────────── */
+
+    function render() {
+        var products = currentDataset();
+
+        // Tear down previous charts so canvases can be reused cleanly.
+        charts.forEach(function (c) { c.destroy(); });
+        charts = [];
+
+        var cap = document.getElementById('source-caption');
+        cap.textContent = (mode === 'filtered')
+            ? 'Showing ' + products.length + ' of ' + allProducts.length + ' products'
+            : allProducts.length + ' products';
+
+        if (!products.length) {
+            document.getElementById('summary-row').innerHTML =
+                '<div class="stat-card"><span class="num">0</span>' +
+                '<span class="label">No products match the current filter</span></div>';
+            return;
+        }
+
+        buildSummary(products);
+        buildTimeline(products);
+        buildSystems(products);
+        buildTypes(products);
+        buildSettings(products);
+        buildArtists(products);
+    }
+
+    /* ── Summary cards ──────────────────────────────────────── */
+
+    function buildSummary(products) {
         var years = products.map(function (p) { return p.year; });
         var minYear = Math.min.apply(null, years);
         var maxYear = Math.max.apply(null, years);
 
         var settingsSet = new Set();
         var artistsSet = new Set();
+        var publishersSet = new Set();
         products.forEach(function (p) {
             if (p.setting) settingsSet.add(p.setting);
             if (p.cover_artist && p.cover_artist !== 'N/A') artistsSet.add(p.cover_artist);
+            if (p.publisher) publishersSet.add(p.publisher);
         });
-
-        var adventureCount = products.filter(function (p) { return p.type === 'adventure'; }).length;
 
         var cards = [
             { num: products.length, label: 'Products', target: 'sec-timeline' },
             { num: minYear + '–' + maxYear, label: 'Year Range', target: 'sec-timeline' },
-            { num: adventureCount, label: 'Adventures', target: 'sec-types' },
+            { num: publishersSet.size, label: 'Publishers', target: 'sec-timeline' },
             { num: settingsSet.size, label: 'Settings', target: 'sec-settings' },
             { num: artistsSet.size, label: 'Cover Artists', target: 'sec-artists' }
         ];
 
         var row = document.getElementById('summary-row');
+        row.innerHTML = '';
         cards.forEach(function (c) {
             var el = document.createElement('div');
             el.className = 'stat-card';
@@ -295,50 +398,77 @@
             });
             row.appendChild(el);
         });
+    }
 
-        /* ── Chart 1: Releases per year (line/area) ────────── */
+    function yearRange(products) {
+        var years = products.map(function (p) { return p.year; });
+        var lo = Math.min.apply(null, years);
+        var hi = Math.max.apply(null, years);
+        var labels = [];
+        for (var y = lo; y <= hi; y++) labels.push(y);
+        return labels;
+    }
 
-        var yearCounts = {};
-        for (var y = minYear; y <= maxYear; y++) yearCounts[y] = 0;
-        products.forEach(function (p) { yearCounts[p.year]++; });
+    /* ── Chart 1: Releases per year, stacked area by publisher ── */
 
-        var yearLabels = Object.keys(yearCounts).map(Number);
-        var yearValues = yearLabels.map(function (y) { return yearCounts[y]; });
+    function buildTimeline(products) {
+        var yearLabels = yearRange(products);
+        var publisherOrder = ['TSR', 'WotC', 'Paizo'];
 
-        new Chart(document.getElementById('chart-timeline'), {
+        var datasets = publisherOrder.map(function (pub) {
+            var counts = {};
+            yearLabels.forEach(function (y) { counts[y] = 0; });
+            products.forEach(function (p) { if (p.publisher === pub) counts[p.year]++; });
+            return {
+                pub: pub,
+                total: yearLabels.reduce(function (s, y) { return s + counts[y]; }, 0),
+                label: pub,
+                data: yearLabels.map(function (y) { return counts[y]; }),
+                borderColor: PUBLISHER_COLORS[pub],
+                backgroundColor: PUBLISHER_COLORS[pub] + '55',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                borderWidth: 2
+            };
+        }).filter(function (d) { return d.total > 0; });   // hide publishers absent from this set
+
+        charts.push(new Chart(document.getElementById('chart-timeline'), {
             type: 'line',
-            data: {
-                labels: yearLabels,
-                datasets: [{
-                    label: 'Products released',
-                    data: yearValues,
-                    borderColor: '#c9a227',
-                    backgroundColor: 'rgba(201,162,39,0.15)',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: '#c9a227'
-                }]
-            },
+            data: { labels: yearLabels, datasets: datasets },
             options: {
-                plugins: { legend: { display: false } },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            footer: function (items) {
+                                var sum = items.reduce(function (s, i) { return s + i.raw; }, 0);
+                                return 'Total: ' + sum;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: { grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
                 }
             }
-        });
+        }));
+    }
 
-        /* ── Chart 2: Systems over time (stacked bar) ──────── */
+    /* ── Chart 2: Systems over time (stacked bar) — includes 4e ── */
 
-        var systemOrder = ['OD&D', 'Basic D&D', 'AD&D 1e', 'AD&D 2e', 'D&D 3e', 'D&D 3.5', 'Other'];
-        var majorSystems = new Set(['OD&D', 'Basic D&D', 'AD&D 1e', 'AD&D 2e', 'D&D 3e', 'D&D 3.5']);
+    function buildSystems(products) {
+        var yearLabels = yearRange(products);
+        var systemOrder = ['OD&D', 'Basic D&D', 'AD&D 1e', 'AD&D 2e', 'D&D 3e', 'D&D 3.5', 'D&D 4e', 'Other'];
+        var majorSystems = new Set(['OD&D', 'Basic D&D', 'AD&D 1e', 'AD&D 2e', 'D&D 3e', 'D&D 3.5', 'D&D 4e']);
 
         var systemYearData = {};
-        systemOrder.forEach(function (s) { systemYearData[s] = {}; });
-        yearLabels.forEach(function (y) {
-            systemOrder.forEach(function (s) { systemYearData[s][y] = 0; });
+        systemOrder.forEach(function (s) {
+            systemYearData[s] = {};
+            yearLabels.forEach(function (y) { systemYearData[s][y] = 0; });
         });
 
         products.forEach(function (p) {
@@ -353,9 +483,11 @@
                 backgroundColor: C[i],
                 borderWidth: 0
             };
+        }).filter(function (d) {
+            return d.data.some(function (v) { return v > 0; });   // drop systems absent from this set
         });
 
-        new Chart(document.getElementById('chart-systems'), {
+        charts.push(new Chart(document.getElementById('chart-systems'), {
             type: 'bar',
             data: { labels: yearLabels, datasets: systemDatasets },
             options: {
@@ -376,66 +508,29 @@
                     y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
                 }
             }
-        });
+        }));
+    }
 
-        /* ── Chart 3: Product types (doughnut) ─────────────── */
+    /* ── Chart 3: Product types (horizontal bar, all types) ───── */
 
-        var typeCounts = countBy(products, 'type');
-        var typeEntries = sortedEntries(typeCounts);
-
-        // Group small types into "Other"
-        var mainTypes = [];
+    function buildTypes(products) {
+        // Collapse the long tail (< 10 products) into a single "Other" bar,
+        // kept at the bottom so the major types read cleanly.
+        var typeEntries = [];
         var otherCount = 0;
-        typeEntries.forEach(function (e) {
-            if (e[1] >= 10) mainTypes.push(e);
+        sortedEntries(countBy(products, 'type')).forEach(function (e) {
+            if (e[1] >= 10) typeEntries.push(e);
             else otherCount += e[1];
         });
-        if (otherCount > 0) mainTypes.push(['Other', otherCount]);
+        if (otherCount > 0) typeEntries.push(['Other', otherCount]);
 
-        new Chart(document.getElementById('chart-types'), {
-            type: 'doughnut',
-            data: {
-                labels: mainTypes.map(function (e) { return e[0]; }),
-                datasets: [{
-                    data: mainTypes.map(function (e) { return e[1]; }),
-                    backgroundColor: C.slice(0, mainTypes.length),
-                    borderColor: '#2a2a4a',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
-                                var pct = ((ctx.raw / total) * 100).toFixed(1);
-                                return ctx.label + ': ' + ctx.raw + ' (' + pct + '%)';
-                            }
-                        }
-                    }
-                },
-                cutout: '55%'
-            }
-        });
-
-        /* ── Chart 4: Campaign settings (horizontal bar) ───── */
-
-        var settingCounts = countBy(products, 'setting');
-        var noSetting = settingCounts['(none)'] || 0;
-        delete settingCounts['(none)'];
-
-        var settingEntries = sortedEntries(settingCounts, 12);
-        settingEntries.push(['(no setting)', noSetting]);
-
-        new Chart(document.getElementById('chart-settings'), {
+        charts.push(new Chart(document.getElementById('chart-types'), {
             type: 'bar',
             data: {
-                labels: settingEntries.map(function (e) { return e[0]; }),
+                labels: typeEntries.map(function (e) { return e[0]; }),
                 datasets: [{
                     label: 'Products',
-                    data: settingEntries.map(function (e) { return e[1]; }),
+                    data: typeEntries.map(function (e) { return e[1]; }),
                     backgroundColor: '#c9a227',
                     borderWidth: 0,
                     borderRadius: 3
@@ -449,17 +544,53 @@
                     y: { grid: { display: false } }
                 }
             }
-        });
+        }));
+    }
 
-        /* ── Chart 5: Cover artists (horizontal bar) ───────── */
+    /* ── Chart 4: Campaign settings (horizontal bar) ──────────── */
+    // Excludes magazines' catch-all "Various" and products with no setting,
+    // so named campaign worlds rank honestly.
 
+    function buildSettings(products) {
+        var settingCounts = countBy(products, 'setting');
+        delete settingCounts['(none)'];
+        delete settingCounts['Various'];
+
+        var settingEntries = sortedEntries(settingCounts, 12);
+
+        charts.push(new Chart(document.getElementById('chart-settings'), {
+            type: 'bar',
+            data: {
+                labels: settingEntries.map(function (e) { return e[0]; }),
+                datasets: [{
+                    label: 'Products',
+                    data: settingEntries.map(function (e) { return e[1]; }),
+                    backgroundColor: '#98c379',
+                    borderWidth: 0,
+                    borderRadius: 3
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } },
+                    y: { grid: { display: false } }
+                }
+            }
+        }));
+    }
+
+    /* ── Chart 5: Cover artists (horizontal bar, top 12) ──────── */
+
+    function buildArtists(products) {
         var artistCounts = countBy(products, 'cover_artist');
         delete artistCounts['N/A'];
         delete artistCounts['(none)'];
 
-        var artistEntries = sortedEntries(artistCounts, 10);
+        var artistEntries = sortedEntries(artistCounts, 12);
 
-        new Chart(document.getElementById('chart-artists'), {
+        charts.push(new Chart(document.getElementById('chart-artists'), {
             type: 'bar',
             data: {
                 labels: artistEntries.map(function (e) { return e[0]; }),
@@ -479,9 +610,9 @@
                     y: { grid: { display: false } }
                 }
             }
-        });
-
+        }));
     }
+
 })();
 </script>
 
