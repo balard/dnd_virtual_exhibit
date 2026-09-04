@@ -56,7 +56,10 @@ def load_blurbs():
             rid = row.get('id', '').strip()
             if not rid or rid == 'id':
                 continue
-            mapping[int(rid)] = str_or_none(row.get('blurb', ''))
+            # Source CSV may carry CRLF (or lone CR) inside quoted blurb fields;
+            # normalize to \n so regenerating doesn't churn every blurb in the diff.
+            blurb = row.get('blurb', '').replace('\r\n', '\n').replace('\r', '\n')
+            mapping[int(rid)] = str_or_none(blurb)
     return mapping
 
 
