@@ -32,11 +32,12 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 
 ## search.html internals
 - Loads `products.json` via `fetch()` on init (same requirement: must run via local server)
-- **Structured filters** — pill toggle buttons, multi-select, OR-logic within a category, AND-logic across categories:
-  - **Type** (8 values): `adventure`, `accessory`, `boxed set`, `hardcover`, `Flip-book`, `boardgame`, `miniatures`, `magazine`
-  - **System** (9 values): `AD&D 2e`, `AD&D 1e`, `Basic D&D`, `OD&D`, `Dragon Quest`, `D&D 3e`, `D&D 3.5`, `Chainmail`, `D&D 4e`
-  - **Setting** (23 values + null): Forgotten Realms, Greyhawk, Mystara, Ravenloft, Dragonlance, Planescape, Dark Sun, Birthright, Spelljammer, Al-Qadim, Lankhmar, Thunder Rift, Kara-Tur, Mystara (2E), Blackmoor, Conan, Celtic, Eberron, Ghostwalk, Oriental Adventures, Diablo, Chainmail, Various — plus `(no setting)` for products where `setting` is null
-  - **Publisher** (2 pills): `TSR`, `WotC` — note the data also contains a 3rd publisher, `Paizo` (~118 Dragon/Dungeon magazine issues, 2002–2007), which has **no pill** yet and so is not filterable by publisher on search.html (follow-up). stats.html does chart all three.
+- **Structured filters** — pill toggle buttons, multi-select, OR-logic within a category, AND-logic across categories. Each pill cycles through **three states** on click: neutral → include (`.active`, added to `activeFilters`) → exclude (`.excluded`, added to `excludedFilters`) → neutral. Excludes are AND-ed as negations, so an excluded value is dropped even when another pill in the same category includes it.
+  - Pill values are **derived from `products.json` at load** (`buildAllPills()`), not hardcoded — a new type/system/setting/publisher in the data gets a pill automatically, in first-appearance order. The lists below are therefore a snapshot of the current data, not a fixed schema:
+  - **Type** (8 values): `boxed set`, `accessory`, `magazine`, `hardcover`, `adventure`, `boardgame`, `Flip-book`, `miniatures`
+  - **System** (9 values): `OD&D`, `Basic D&D`, `AD&D 1e`, `AD&D 2e`, `Dragon Quest`, `D&D 3e`, `Chainmail`, `D&D 3.5`, `D&D 4e`
+  - **Setting** (22 values + null): Greyhawk, Blackmoor, Various, Mystara, Ravenloft, Celtic, Dragonlance, Conan, Forgotten Realms, Kara-Tur, Lankhmar, Planescape, Spelljammer, Dark Sun, Thunder Rift, Al-Qadim, Mystara (2E), Birthright, Diablo, Chainmail, Eberron, Points of Light — plus `(no setting)` for products where `setting` is null (the `__none__` sentinel, always sorted last)
+  - **Publisher** (3 pills): `TSR`, `WotC`, `Paizo` (the last being ~118 Dragon/Dungeon magazine issues, 2002–2007). stats.html charts all three as well.
 - **Text search** — live, debounced 200ms, case-insensitive, searches: `title`, `dtrpg_title`, `module_code`, `product_code`, `authors`, `cover_artist`, `blurb`
 - Pill counts show total products per value (not filtered count) — they are built once on load
 - Results render as a thumbnail grid (`aspect-ratio: 3/4`, lazy-loaded); clicking a card → `index.html#id=<N>`
@@ -97,6 +98,7 @@ Output:
 - Exports 24 fields per product: id, order, year, month, day, product_code, title, module_code, type, system, setting, publisher, confidence, edition, authors, pages, isbn, cover_url, cover_artist, semester, backcover_url, blurb, dtrpg_url, dtrpg_title
 - CSV columns with spaces (`product code`, `module code`) are normalized to underscores
 - `cover_artist` normalization: strips `LIKELY:` prefix; converts empty/blank to `null`; keeps `N/A` as the string `"N/A"` (meaning artist credit is explicitly not applicable, distinct from unknown/missing)
+- `blurb` normalization: CRLF and lone CR inside the quoted CSV field are normalized to `\n`. The CSV must be opened with `newline=''` (required by the `csv` module), which preserves whatever line endings the source file carries — without this normalization an upstream rewrite of `blurbs.csv` churns every blurb in the `products.json` diff while changing nothing that renders
 - `season` field removed (no longer in source data)
 - Always reads local CSV files directly (no remote URL fallback)
 - Local cover files (`covers/full/{id}.*`) are the primary image source; `cover_url` from covers.csv is a fallback — products with local files are included even without a CSV cover_url
