@@ -910,20 +910,27 @@
             // Front cover image (fade-in loader)
             img.classList.add('loading');
             loading.classList.add('visible');
-            const tempImg = new Image();
-            tempImg.onload = () => {
-                img.src = tempImg.src;
-                img.alt = p.title;
-                img.classList.remove('loading');
-                loading.classList.remove('visible');
-            };
-            tempImg.onerror = () => {
+            const showNoCover = () => {
                 img.src = '';
                 img.alt = 'Cover not available';
                 img.classList.remove('loading');
                 loading.textContent = 'Cover not available';
             };
-            tempImg.src = p.cover_url;
+            if (p.cover_url) {
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    img.src = tempImg.src;
+                    img.alt = p.title;
+                    img.classList.remove('loading');
+                    loading.classList.remove('visible');
+                };
+                tempImg.onerror = showNoCover;
+                tempImg.src = p.cover_url;
+            } else {
+                // Exported with cover_url = null. Assigning that to .src would
+                // request "/null" and 404; show the same message directly.
+                showNoCover();
+            }
 
             // Title
             title.textContent = p.title;
@@ -1079,7 +1086,9 @@
 
         function preload(index) {
             if (index >= 0 && index < products.length) {
-                new Image().src = products[index].cover_url;
+                if (products[index].cover_url) {
+                    new Image().src = products[index].cover_url;
+                }
                 if (products[index].backcover_url) {
                     new Image().src = products[index].backcover_url;
                 }

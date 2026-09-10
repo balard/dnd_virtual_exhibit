@@ -204,6 +204,23 @@
         }
         .card-img-wrap img.loading { opacity: 0; }
 
+        /* Products exported with cover_url = null still get a card, so they stay
+           searchable while the missing art is tracked down. */
+        .card-img-wrap.no-cover {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-style: dashed;
+        }
+        .card-img-wrap.no-cover span {
+            font-size: 0.62rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: center;
+            padding: 0 0.5rem;
+        }
+
         .card-title {
             font-size: 0.72rem;
             color: var(--text);
@@ -431,14 +448,21 @@
                 const imgWrap = document.createElement('div');
                 imgWrap.className = 'card-img-wrap';
 
-                const img = document.createElement('img');
-                img.loading = 'lazy';
-                img.alt = p.title;
-                img.className = 'loading';
-                img.src = p.cover_url.replace('/full/', '/thumb/');
-                img.onload  = () => img.classList.remove('loading');
-                img.onerror = () => img.classList.remove('loading');
-                imgWrap.appendChild(img);
+                if (p.cover_url) {
+                    const img = document.createElement('img');
+                    img.loading = 'lazy';
+                    img.alt = p.title;
+                    img.className = 'loading';
+                    img.src = p.cover_url.replace('/full/', '/thumb/');
+                    img.onload  = () => img.classList.remove('loading');
+                    img.onerror = () => img.classList.remove('loading');
+                    imgWrap.appendChild(img);
+                } else {
+                    imgWrap.classList.add('no-cover');
+                    const ph = document.createElement('span');
+                    ph.textContent = 'No cover yet';
+                    imgWrap.appendChild(ph);
+                }
                 link.appendChild(imgWrap);
 
                 const titleEl = document.createElement('div');

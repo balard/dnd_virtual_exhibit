@@ -352,6 +352,15 @@
         function loadImage(imgEl, loadingEl, src, alt) {
             imgEl.classList.add('loading');
             loadingEl.classList.add('visible');
+            if (!src) {
+                // cover_url can be null for a product still awaiting its image;
+                // assigning that to .src would request "/null" and 404.
+                imgEl.src = '';
+                imgEl.alt = '';
+                imgEl.classList.remove('loading');
+                loadingEl.textContent = 'Not available';
+                return;
+            }
             const t = new Image();
             t.onload = () => {
                 imgEl.src = t.src;

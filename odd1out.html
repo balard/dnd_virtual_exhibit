@@ -795,7 +795,10 @@
       try {
         const resp = await fetch('products.json');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        allProducts = await resp.json();
+        // The whole game is judging cover art, so a product exported without a
+        // front cover is unplayable. Drop it here rather than at render time so
+        // pool and allProducts stay comparable for the filter-banner counts.
+        allProducts = (await resp.json()).filter(p => p.cover_url);
       } catch (e) {
         document.getElementById('error-msg').textContent =
           'Could not load products.json. Run via a local server: python -m http.server 8000';

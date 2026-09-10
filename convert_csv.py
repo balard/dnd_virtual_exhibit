@@ -83,6 +83,7 @@ dtrpg  = load_dtrpg()
 
 products = []
 warnings = []
+no_cover = []   # products dropped for having no cover image at all
 with open_csv(MAIN_CSV) as f:
     for row in csv.DictReader(f):
         row_id = row.get('id', '').strip()
@@ -104,7 +105,11 @@ with open_csv(MAIN_CSV) as f:
             break
 
         if not cover_url and not local_path:
-            continue  # skip products with no cover
+            # No cover anywhere. The product is still exported (with cover_url=None)
+            # so it stays visible and correctable later — it is only the image that
+            # is missing, not the record. Reported loudly at the end of the run.
+            no_cover.append((pid, row.get('title', '').strip(),
+                             year, str_or_none(row.get('type', ''))))
 
         local_back_path = None
         for f_path in LOCAL_COVERS_DIR.glob(f'{pid}-back.*'):
@@ -149,7 +154,7 @@ with open_csv(MAIN_CSV) as f:
             'authors':       row.get('authors', '').strip() or None,
             'pages':         int_or_none(row.get('pages', '')),
             'isbn':          str_or_none(row.get('isbn', '')),
-            'cover_url':     local_path if local_path else cover_url,
+            'cover_url':     local_path or cover_url or None,
             'cover_artist':  artist,
             'semester':      int_or_none(row.get('semester', '')),
             'backcover_url': local_back_path if local_back_path else cover_data.get('backcover_url'),
@@ -168,7 +173,7 @@ if warnings:
     for w in warnings:
         print(f'  {w}')
 
-hotlink_front = [(p['id'], p['title'], p['cover_url'])     for p in products if p['cover_url'].startswith('http')]
+hotlink_front = [(p['id'], p['title'], p['cover_url'])     for p in products if p['cover_url'] and p['cover_url'].startswith('http')]
 hotlink_back  = [(p['id'], p['title'], p['backcover_url']) for p in products if p.get('backcover_url') and p['backcover_url'].startswith('http')]
 
 if hotlink_front:
@@ -180,3 +185,37 @@ if hotlink_back:
     print(f'\nWARNING: {len(hotlink_back)} product(s) using remote back cover URL (no local file):')
     for pid, ptitle, url in hotlink_back:
         print(f'  id={pid:>4}  {ptitle[:50]:<50}  {url}')
+
+# A missing back cover is normal — plenty of products never had one — but it is
+# still reported so the gap is always visible and can be filled if art turns up.
+# Magazines are collapsed to a count: all ~651 legitimately lack a back, and
+# listing them would bury the handful anyone could actually act on.
+missing_back = [(p['id'], p['title'], p['year'], p['type'])
+                for p in products if not p.get('backcover_url')]
+mag_missing  = [p for p in missing_back if p[3] == 'magazine']
+real_missing = [p for p in missing_back if p[3] != 'magazine']
+
+if missing_back:
+    print(f'\nWARNING: {len(missing_back)} product(s) have no back cover '
+          f'({len(real_missing)} listed, {len(mag_missing)} magazines counted only).')
+    for pid, ptitle, pyear, ptype in real_missing:
+        print(f'  id={pid:>4}  {pyear}  {ptitle[:44]:<44}  {ptype or ""}')
+    if mag_missing:
+        print(f'  ...plus {len(mag_missing)} magazines, which never had back covers.')
+
+# Front covers are different: every product is supposed to have one, so a missing
+# front is a defect rather than a fact of life. The product is still exported so
+# it stays browsable and fixable, but this is the loudest thing the run prints,
+# and it goes last so it is the final thing on screen.
+if no_cover:
+    print('\n' + '=' * 68)
+    print(f'!!  ACTION NEEDED: {len(no_cover)} product(s) HAVE NO FRONT COVER  !!')
+    print('=' * 68)
+    print('  Every product should have a front cover. These were exported anyway')
+    print('  (cover_url = null) so they stay browsable, but they render as a')
+    print('  placeholder until an image is supplied.')
+    for pid, ptitle, pyear, ptype in no_cover:
+        print(f'  id={pid:>4}  {pyear}  {ptitle[:44]:<44}  {ptype or ""}')
+    print('  Fix either way: drop the image at covers/full/<id>.jpg,')
+    print('  or add a cover_url for that id in ../tsr_products/covers.csv.')
+    print('=' * 68)
