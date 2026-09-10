@@ -106,6 +106,10 @@ Output:
 - Always reads local CSV files directly (no remote URL fallback)
 - Local cover files (`covers/full/{id}.*`) are the primary image source; `cover_url` from covers.csv is a fallback — products with local files are included even without a CSV cover_url
 - Validates month (1–12) and title; invalid months are set to `null` with a warning; missing titles are skipped
+- **Missing-cover reporting.** Every product is expected to have a front cover; a missing back cover is normal. Both are reported, at different volumes, and *neither* drops the product any more:
+  - **`ACTION NEEDED` (banner, printed last)** — no front cover anywhere (no `covers/full/{id}.*` **and** no `cover_url` in covers.csv). The product **is still exported**, with `cover_url: null`, so the record stays browsable and correctable later. Lists id, year, title, type, and both fixes: drop the image at `covers/full/{id}.jpg`, or add a `cover_url` for that id in covers.csv. This was a silent `continue` until ids 1921–1924 (the 1994 Player Packs) were found missing from every import with no trace
+  - **`WARNING`** — no back cover. Always reported, since art can turn up later. Non-magazine products are listed individually (currently 8); the ~651 magazines legitimately never had backs and are collapsed to a trailing count so they don't bury the actionable ones
+- **`cover_url` is nullable** as a result. Consumers must guard it: assigning `null` to `img.src` requests `/null` and 404s, and `null.replace(...)` throws. `search.html` renders a dashed "No cover yet" placeholder card, `index.html` and `spread.html` show their existing "not available" state without issuing a request, and both games (`game.html`, `odd1out.html`) drop coverless products from the pool since judging cover art is the whole point
 - Exits with a clear error if any source CSV file is missing
 
 ## Image Download Progress
