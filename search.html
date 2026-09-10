@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="fav_icon.png">
-    <title>TSR Cover Search</title>
+    <title>Cover Search</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="common.css">
@@ -96,6 +96,22 @@
         }
         #search-input:focus { border-color: var(--accent); }
         #search-input::placeholder { color: #666; }
+
+        .search-title-only {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+        .search-title-only input {
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
 
         #result-count {
             font-size: 0.8rem;
@@ -252,14 +268,14 @@
 
     <div id="error-overlay">
         <div class="error-box">
-            <h2>TSR Cover Search</h2>
+            <h2>Cover Search</h2>
             <p id="error-msg">Could not load products.json. Run via a local server.</p>
             <p style="margin-top:1rem"><a href="index.html">← Return to gallery</a></p>
         </div>
     </div>
 
     <header class="page-header">
-        <h1>TSR Cover Search</h1>
+        <h1>Cover Search</h1>
         <button id="btn-back-gallery" class="btn-back">&#8592; Gallery</button>
         <button id="btn-clear-filters" class="btn-back" style="display:none;">&#215; Clear Filters</button>
     </header>
@@ -273,6 +289,10 @@
                 </svg>
                 <input type="search" id="search-input" placeholder="Title, code, author, artist, description&hellip;" autocomplete="off">
             </div>
+            <label class="search-title-only" for="search-title-only">
+                <input type="checkbox" id="search-title-only">
+                Title only
+            </label>
             <span id="result-count"></span>
         </div>
 
@@ -316,10 +336,12 @@
             publisher: new Set()
         };
         let searchText = '';
+        let titleOnly = false;
         let debounceTimer = null;
 
         const btnClearFilters = document.getElementById('btn-clear-filters');
         const searchInput  = document.getElementById('search-input');
+        const searchTitleOnly = document.getElementById('search-title-only');
         const resultCount  = document.getElementById('result-count');
         const resultsGrid  = document.getElementById('results-grid');
         const emptyState   = document.getElementById('empty-state');
@@ -348,6 +370,7 @@
                 setting:   [...activeFilters.setting],
                 publisher: [...activeFilters.publisher],
                 text:      searchText,
+                text_title_only: titleOnly,
                 exclude_type:      [...excludedFilters.type],
                 exclude_system:    [...excludedFilters.system],
                 exclude_setting:   [...excludedFilters.setting],
@@ -370,6 +393,8 @@
             for (const val of (saved.exclude_publisher || [])) excludedFilters.publisher.add(val);
             searchText = saved.text || '';
             searchInput.value = searchText;
+            titleOnly = !!saved.text_title_only;
+            searchTitleOnly.checked = titleOnly;
         }
 
         btnClearFilters.addEventListener('click', () => {
@@ -383,6 +408,8 @@
             excludedFilters.publisher.clear();
             searchText = '';
             searchInput.value = '';
+            titleOnly = false;
+            searchTitleOnly.checked = false;
             document.querySelectorAll('.pill.active, .pill.excluded').forEach(p => {
                 p.classList.remove('active', 'excluded');
                 p.setAttribute('aria-pressed', 'false');
@@ -396,7 +423,8 @@
 
         function matchesText(p, q) {
             if (!q) return true;
-            for (const f of TEXT_FIELDS) {
+            const fields = titleOnly ? ['title'] : TEXT_FIELDS;
+            for (const f of fields) {
                 if (p[f] && p[f].toLowerCase().includes(q)) return true;
             }
             return false;
@@ -573,6 +601,12 @@
                 saveFilters();
                 renderResults();
             }, 200);
+        });
+
+        searchTitleOnly.addEventListener('change', () => {
+            titleOnly = searchTitleOnly.checked;
+            saveFilters();
+            renderResults();
         });
 
         document.getElementById('btn-back-gallery').addEventListener('click', () => {
