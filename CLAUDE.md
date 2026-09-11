@@ -62,7 +62,19 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - Responsive breakpoint at 900px (3-column → 1-column layout)
 
 ## Data Pipeline
-To regenerate `products.json` after editing the CSV:
+
+> **`convert_csv.py` does NOT convert images.** The name is about CSV -> JSON.
+> It reads the CSVs and whatever files happen to be sitting in `covers/full/`,
+> and writes `products.json`. Nothing else in it touches an image.
+> Only `tools/avif_convert.py --adopt` converts anything.
+>
+> - **Text-only CSV edit** (title, artist, blurb, dtrpg link): `convert_csv.py`
+>   alone is the whole job.
+> - **Any change involving images** (new products, re-fetched covers, a
+>   hand-dropped file): `convert_csv.py` is the **last of four steps**. See
+>   *Image Download Pipeline* below and run all of them, in order.
+
+To regenerate `products.json` after a text-only CSV edit:
 ```bash
 python convert_csv.py
 ```
@@ -91,10 +103,30 @@ Output:
 3. `python generate_thumbs.py <start_id> <end_id>` ← thumbnails, generated from the AVIF
 4. `python convert_csv.py` ← regenerate JSON **last**; local paths are picked up automatically
 
-The order matters. `convert_csv.py` must run *after* `--adopt`, or it records
-`covers/full/{id}.jpg` for covers that are about to become `.avif` and every one
-of those products renders a broken image. `redownload_cover.py` chains steps 2–4
-automatically for exactly this reason.
+**The order matters, and both ways of getting it wrong are worth knowing:**
+
+- **Skipping step 2 entirely** is the dangerous one, because *nothing visibly
+  breaks*. The JPEGs stay in `covers/full/`, `products.json` records
+  `covers/full/{id}.jpg`, a matching `.jpg` thumbnail is generated, and the site
+  serves all of it happily. The only symptom is that those products are silently
+  still JPEG — roughly double the bytes — quietly eating the headroom the
+  migration bought. Nobody notices until the Pages cap is in sight again.
+- **Running step 4 before step 2** fails loudly instead: `products.json` records
+  `.jpg` for files that then become `.avif`, and every one of those products
+  renders a broken image.
+
+`redownload_cover.py` chains steps 2–4 automatically for exactly this reason;
+`download_covers.py` deliberately does not, so after a bulk fetch the remaining
+three steps are yours to run.
+
+**Verifying a batch landed correctly** — after any image work, this must print 0:
+```bash
+ls covers/full/*.jpg 2>/dev/null | wc -l    # stray JPEGs; 0 means --adopt ran
+```
+and `products.json` should contain no `covers/full/*.jpg` paths:
+```bash
+grep -c 'covers/full/[^"]*\.jpg' products.json    # expect 0
+```
 
 ## generate_thumbs.py internals
 - Reads `covers/full/` (`.avif`/`.jpg`/`.jpeg`, case-insensitive) and writes 300px-wide JPEGs to `covers/thumb/`
