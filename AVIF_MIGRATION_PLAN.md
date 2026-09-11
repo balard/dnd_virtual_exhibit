@@ -636,6 +636,14 @@ Worth writing down so the decision is deliberate when it comes.
 
 ## Rollback summary
 
+**The staged rollback below is now historical — `covers.jpeg.bak/` was deleted
+once the live deploy was confirmed, so `tools/avif_convert.py --revert` no
+longer has a tree to restore from.** The only remaining undo is the off-machine
+tar at `D:/RPG/tsr-covers-jpeg-20260911.tar` (3,019 JPEG masters, verified
+byte-identical before deletion) plus the JPEG blobs still in git history. Both
+cover ids up to ~1961 only; everything added from id 1968 onward is AVIF-native
+by decision and has no JPEG original anywhere.
+
 | stage reached | how to undo |
 |---|---|
 | Phase 1 code changes made | `git revert` that commit — it is self-contained and `covers/` was never touched |
