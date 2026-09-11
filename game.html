@@ -634,7 +634,7 @@
         img.style.opacity = '';
         loadingEl.style.display = '';
         loadingEl.textContent = 'Loading\u2026';
-        img.src = product.cover_url.replace('/full/', '/thumb/');
+        img.src = thumbUrl(product.cover_url);
         img.alt = product.title;
 
         yearEl.textContent = product.year;
@@ -664,7 +664,7 @@
       img.classList.remove('loaded');
       loadingEl.style.display = '';
       loadingEl.textContent = 'Loading\u2026';
-      img.src = product.cover_url.replace('/full/', '/thumb/');
+      img.src = thumbUrl(product.cover_url);
       img.alt = product.title;
       yearEl.textContent = product.year;
       yearEl.href = 'index.html#id=' + product.id;

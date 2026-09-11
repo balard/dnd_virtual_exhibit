@@ -25,8 +25,8 @@ JPEG_QUALITY = 75
 
 
 def extract_id(filename: str) -> int | None:
-    """Extract numeric product id from filename like '123.jpg' or '123-back.jpg'."""
-    m = re.match(r"^(\d+)(?:-back)?\.jpe?g$", filename.lower())
+    """Extract numeric product id from filename like '123.avif' or '123-back.jpg'."""
+    m = re.match(r"^(\d+)(?:-back)?\.(?:jpe?g|avif)$", filename.lower())
     return int(m.group(1)) if m else None
 
 
@@ -45,7 +45,8 @@ def main():
         print(f"Source directory not found: {SOURCE_DIR}")
         sys.exit(1)
 
-    all_files = sorted(f for ext in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG") for f in SOURCE_DIR.glob(ext))
+    all_files = sorted(f for ext in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.avif", "*.AVIF")
+                       for f in SOURCE_DIR.glob(ext))
 
     if id_range:
         start, end = id_range
@@ -62,7 +63,10 @@ def main():
     total = len(files)
 
     for i, src_path in enumerate(files, 1):
-        dest_path = OUTPUT_DIR / src_path.name
+        # Thumbnails stay JPEG regardless of the source format (see thumbUrl()
+        # in utils.js): AVIF saves almost nothing at 300px and decodes slower
+        # in a grid. Name by stem so an .avif source still yields a .jpg thumb.
+        dest_path = OUTPUT_DIR / (src_path.stem + ".jpg")
 
         if dest_path.exists():
             print(f"  skip [{i}/{total}] {src_path.name} (exists)")

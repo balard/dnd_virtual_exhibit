@@ -100,7 +100,11 @@ with open_csv(MAIN_CSV) as f:
             continue
 
         local_path = None
-        for f_path in LOCAL_COVERS_DIR.glob(f'{pid}.*'):
+        # Sorted with .avif first so the choice is deterministic during an
+        # --adopt window, when a newly downloaded {pid}.jpg briefly sits
+        # alongside its converted {pid}.avif. Bare glob() order is arbitrary.
+        for f_path in sorted(LOCAL_COVERS_DIR.glob(f'{pid}.*'),
+                             key=lambda q: (q.suffix.lower() != '.avif', q.name)):
             local_path = f'covers/full/{f_path.name}'
             break
 
@@ -112,7 +116,8 @@ with open_csv(MAIN_CSV) as f:
                              year, str_or_none(row.get('type', ''))))
 
         local_back_path = None
-        for f_path in LOCAL_COVERS_DIR.glob(f'{pid}-back.*'):
+        for f_path in sorted(LOCAL_COVERS_DIR.glob(f'{pid}-back.*'),
+                             key=lambda q: (q.suffix.lower() != '.avif', q.name)):
             local_back_path = f'covers/full/{f_path.name}'
             break
 

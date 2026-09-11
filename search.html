@@ -481,7 +481,7 @@
                     img.loading = 'lazy';
                     img.alt = p.title;
                     img.className = 'loading';
-                    img.src = p.cover_url.replace('/full/', '/thumb/');
+                    img.src = thumbUrl(p.cover_url);
                     img.onload  = () => img.classList.remove('loading');
                     img.onerror = () => img.classList.remove('loading');
                     imgWrap.appendChild(img);

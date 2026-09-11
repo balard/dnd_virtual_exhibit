@@ -1,6 +1,9 @@
 # Claude local settings
 .claude/
 
+# AVIF migration: fast-undo tree created by tools/avif_convert.py --promote
+covers.jpeg.bak/
+
 # Python
 __pycache__/
 *.pyc

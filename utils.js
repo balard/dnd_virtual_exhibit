@@ -31,6 +31,24 @@ const TEXT_FIELDS = ['title','dtrpg_title','module_code','product_code',
                      'authors','cover_artist','blurb'];
 
 /**
+ * Derive a product's thumbnail URL from its cover_url.
+ *
+ * The two trees deliberately use different formats: covers/full/ is AVIF
+ * (roughly half the bytes of JPEG at the same resolution) while covers/thumb/
+ * stays JPEG, because at 300px AVIF saves almost nothing and decodes slower in
+ * a grid rendering hundreds of images at once. So the extension has to be
+ * rewritten, not just the directory.
+ *
+ * Returns null for a product with no cover, and passes through any remote
+ * fallback URL unchanged — those have no locally generated thumbnail.
+ */
+function thumbUrl(coverUrl) {
+    if (!coverUrl) return null;
+    if (!coverUrl.startsWith('covers/full/')) return coverUrl;
+    return coverUrl.replace('/full/', '/thumb/').replace(/\.[^.\/]+$/, '.jpg');
+}
+
+/**
  * Read the saved filter state from localStorage.
  * Returns parsed object, or null if nothing is saved / parse fails.
  */

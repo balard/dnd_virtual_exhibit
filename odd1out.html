@@ -603,7 +603,7 @@
         img.classList.remove('loaded');
         loading.style.display = '';
         loading.textContent = 'Loading\u2026';
-        img.src = product.cover_url.replace('/full/', '/thumb/');
+        img.src = thumbUrl(product.cover_url);
         img.alt = product.title;
 
         valueEl.textContent = '';
