@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/png" href="fav_icon.png">
+    <title>TSR Classics &mdash; Cover Spreads</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Spread area ─────────────────────────────────────────── */
+
+        .spread-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .spread-images {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            height: 100%;
+            padding: 1.5rem 2rem 0.5rem;
+        }
+
+        .cover-slot {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .cover-slot img {
+            max-height: 100%;
+            width: auto;
+            display: block;
+            border: 1px solid var(--accent);
+            box-shadow: 0 0 40px rgba(0,0,0,0.6), 0 0 10px rgba(201,162,39,0.15);
+            background: #0d0d1a;
+            transition: opacity 0.3s ease;
+        }
+        .cover-slot img.loading { opacity: 0; }
+
+        .cover-loading {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: var(--muted);
+            letter-spacing: 0.1em;
+        }
+        .cover-loading.visible { display: flex; }
+
+        /* Back-cover slot hidden when no back cover */
+        #back-slot { display: none; }
+        #back-slot.visible { display: flex; }
+
+        /* Click overlay for navigation */
+        .spread-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            z-index: 10;
+            cursor: pointer;
+        }
+        .overlay-left, .overlay-right {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        /* ── Toolbar ─────────────────────────────────────────────── */
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1.5rem;
+            border-top: 1px solid var(--card);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            background: var(--card);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 0.35rem 0.8rem;
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        .toolbar button:hover { background: var(--accent); color: var(--bg); }
+        .toolbar button.active { background: var(--accent); color: var(--bg); }
+
+        .tool-sep {
+            width: 1px;
+            height: 1.2em;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .tool-year {
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 0.85rem;
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .tool-position {
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 0.72rem;
+            color: var(--muted);
+            letter-spacing: 0.08em;
+            flex-shrink: 0;
+        }
+
+        .tool-hint {
+            font-size: 0.72rem;
+            color: var(--accent);
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Balances .tool-credits (also flex:1) so the hint settles mid-bar
+           instead of being shoved against the Details button. */
+        .tool-spacer { flex: 1; min-width: 0; }
+
+        .tool-credits {
+            font-size: 0.8rem;
+            color: var(--muted);
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ── Details panel ───────────────────────────────────────── */
+
+        .details-panel {
+            display: none;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding: 0.75rem 1.5rem 1rem;
+            border-top: 1px solid var(--card);
+            background: var(--bg2);
+            flex-shrink: 0;
+            max-height: 40vh;
+            overflow-y: auto;
+            flex-wrap: wrap;
+        }
+        .details-panel.visible {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 0.75rem 2rem;
+        }
+
+        .details-item { display: none; flex-direction: column; min-width: 140px; }
+        .details-item.visible { display: flex; }
+        .details-item.blurb-item { width: 100%; }
+
+        .meta-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent);
+            margin-bottom: 0.2rem;
+        }
+        .meta-value {
+            font-size: 0.88rem;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .blurb-item .meta-value { white-space: pre-wrap; color: #c8c8d8; }
+        .details-item a { color: var(--accent); text-decoration: none; }
+        .details-item a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div id="error-overlay">
+        <div class="error-box">
+            <h2>Cover Spread</h2>
+            <p id="error-msg">Product not found.</p>
+            <p style="margin-top:1rem"><a href="index.html">&larr; Return to gallery</a></p>
+        </div>
+    </div>
+
+    <div class="spread-area" id="spread-area">
+        <div class="spread-overlay">
+            <div class="overlay-left"  id="overlay-left"></div>
+            <div class="overlay-right" id="overlay-right"></div>
+        </div>
+
+        <div class="spread-images">
+            <div class="cover-slot" id="back-slot">
+                <img id="back-img" src="" alt="">
+                <div class="cover-loading" id="back-loading">Loading&hellip;</div>
+            </div>
+            <div class="cover-slot" id="front-slot">
+                <img id="front-img" src="" alt="">
+                <div class="cover-loading" id="front-loading">Loading&hellip;</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button id="btn-back">&#8592; Back</button>
+        <div class="tool-sep"></div>
+        <span class="tool-year" id="tool-year"></span>
+        <span class="tool-position" id="tool-position"></span>
+        <span class="tool-credits" id="tool-credits"></span>
+        <span class="tool-hint">Click on the covers to navigate</span>
+        <span class="tool-spacer"></span>
+        <button id="btn-details" aria-expanded="false">Details &#9660;</button>
+    </div>
+
+    <div class="details-panel" id="details-panel">
+        <div class="details-item" id="det-title">
+            <span class="meta-label">Title</span>
+            <span class="meta-value" id="det-val-title"></span>
+        </div>
+        <div class="details-item" id="det-date">
+            <span class="meta-label">Published</span>
+            <span class="meta-value" id="det-val-date"></span>
+        </div>
+        <div class="details-item" id="det-system">
+            <span class="meta-label">System</span>
+            <span class="meta-value" id="det-val-system"></span>
+        </div>
+        <div class="details-item" id="det-setting">
+            <span class="meta-label">Setting</span>
+            <span class="meta-value" id="det-val-setting"></span>
+        </div>
+        <div class="details-item" id="det-type">
+            <span class="meta-label">Type</span>
+            <span class="meta-value" id="det-val-type"></span>
+        </div>
+        <div class="details-item" id="det-publisher">
+            <span class="meta-label">Publisher</span>
+            <span class="meta-value" id="det-val-publisher"></span>
+        </div>
+        <div class="details-item" id="det-edition">
+            <span class="meta-label">Edition</span>
+            <span class="meta-value" id="det-val-edition"></span>
+        </div>
+        <div class="details-item" id="det-product-code">
+            <span class="meta-label">Product Code</span>
+            <span class="meta-value" id="det-val-product-code"></span>
+        </div>
+        <div class="details-item" id="det-module-code">
+            <span class="meta-label">Module Code</span>
+            <span class="meta-value" id="det-val-module-code"></span>
+        </div>
+        <div class="details-item" id="det-pages">
+            <span class="meta-label">Pages</span>
+            <span class="meta-value" id="det-val-pages"></span>
+        </div>
+        <div class="details-item" id="det-isbn">
+            <span class="meta-label">ISBN</span>
+            <span class="meta-value" id="det-val-isbn"></span>
+        </div>
+        <div class="details-item" id="det-dtrpg">
+            <span class="meta-label">Buy / Download</span>
+            <span class="meta-value" id="det-val-dtrpg"></span>
+        </div>
+        <div class="details-item blurb-item" id="det-blurb">
+            <span class="meta-label">Description</span>
+            <span class="meta-value" id="det-val-blurb"></span>
+        </div>
+    </div>
+
+    <script src="utils.js"></script>
+    <script>
+        // Fixed curated set — this page shows these ids, in this order, and
+        // nothing else. It deliberately ignores tsr_active_filters and never
+        // writes the gallery's position keys, so browsing here leaves the main
+        // app's state untouched.
+        const HOTSITE_IDS = [55, 36, 151, 1993, 77];
+
+        let products = [];
+        let currentIndex = 0;
+
+        const frontImg    = document.getElementById('front-img');
+        const backImg     = document.getElementById('back-img');
+        const frontLoad   = document.getElementById('front-loading');
+        const backLoad    = document.getElementById('back-loading');
+        const backSlot    = document.getElementById('back-slot');
+        const toolYear    = document.getElementById('tool-year');
+        const toolPos     = document.getElementById('tool-position');
+        const toolCredits = document.getElementById('tool-credits');
+        const btnBack     = document.getElementById('btn-back');
+        const btnDetails  = document.getElementById('btn-details');
+        const detPanel    = document.getElementById('details-panel');
+        const errorOverlay = document.getElementById('error-overlay');
+        const errorMsg    = document.getElementById('error-msg');
+
+        // ── Hash routing ──────────────────────────────────────────
+
+        function getHashId() {
+            const m = window.location.hash.match(/^#id=(\d+)$/);
+            return m ? parseInt(m[1]) : null;
+        }
+
+        function updateHash() {
+            const p = products[currentIndex];
+            if (p) history.replaceState(null, '', '#id=' + p.id);
+        }
+
+        // ── Image loading ─────────────────────────────────────────
+
+        function loadImage(imgEl, loadingEl, src, alt) {
+            imgEl.classList.add('loading');
+            loadingEl.classList.add('visible');
+            if (!src) {
+                // cover_url can be null for a product still awaiting its image;
+                // assigning that to .src would request "/null" and 404.
+                imgEl.src = '';
+                imgEl.alt = '';
+                imgEl.classList.remove('loading');
+                loadingEl.textContent = 'Not available';
+                return;
+            }
+            const t = new Image();
+            t.onload = () => {
+                imgEl.src = t.src;
+                imgEl.alt = alt;
+                imgEl.classList.remove('loading');
+                loadingEl.classList.remove('visible');
+            };
+            t.onerror = () => {
+                imgEl.src = '';
+                imgEl.alt = '';
+                imgEl.classList.remove('loading');
+                loadingEl.textContent = 'Not available';
+            };
+            t.src = src;
+        }
+
+        // ── Render ────────────────────────────────────────────────
+
+        function render() {
+            const p = products[currentIndex];
+
+            // Front cover
+            loadImage(frontImg, frontLoad, p.cover_url, p.title);
+
+            // Back cover
+            if (p.backcover_url) {
+                backSlot.classList.add('visible');
+                if (backImg.dataset.loadedFor !== String(p.id)) {
+                    backImg.dataset.loadedFor = '';
+                    loadImage(backImg, backLoad, p.backcover_url, p.title + ' (back cover)');
+                    backImg.dataset.loadedFor = String(p.id);
+                }
+            } else {
+                backSlot.classList.remove('visible');
+                backImg.src = '';
+                backImg.dataset.loadedFor = '';
+            }
+
+            // Toolbar
+            toolYear.textContent = p.year || '';
+            toolPos.textContent = (currentIndex + 1) + ' / ' + products.length;
+            const credits = [p.authors, p.cover_artist ? 'Art: ' + p.cover_artist : null]
+                .filter(Boolean).join('  ·  ');
+            toolCredits.textContent = credits;
+
+            // Details panel (update fields; keep open/closed state)
+            renderDetails(p);
+
+            updateHash();
+        }
+
+        function setField(itemId, valId, value) {
+            const item = document.getElementById(itemId);
+            const val  = document.getElementById(valId);
+            if (value) {
+                val.textContent = value;
+                item.classList.add('visible');
+            } else {
+                item.classList.remove('visible');
+            }
+        }
+
+        function renderDetails(p) {
+            setField('det-title',        'det-val-title',        p.title);
+
+            const monthStr = (p.month > 0 && p.month <= 12) ? MONTH_NAMES[p.month - 1] : null;
+            const dateStr  = monthStr ? `${monthStr} ${p.year}` : (p.year ? String(p.year) : null);
+            setField('det-date',         'det-val-date',         dateStr);
+
+            setField('det-system',       'det-val-system',       p.system);
+            setField('det-setting',      'det-val-setting',      p.setting);
+            setField('det-type',         'det-val-type',         p.type);
+            setField('det-publisher',    'det-val-publisher',    p.publisher);
+            setField('det-edition',      'det-val-edition',      p.edition);
+            setField('det-product-code', 'det-val-product-code', p.product_code);
+            setField('det-module-code',  'det-val-module-code',  p.module_code);
+            setField('det-pages',        'det-val-pages',        p.pages ? String(p.pages) : null);
+            setField('det-isbn',         'det-val-isbn',         p.isbn);
+            setField('det-blurb',        'det-val-blurb',        p.blurb);
+
+            // DriveThruRPG link
+            const dtrpgItem = document.getElementById('det-dtrpg');
+            const dtrpgVal  = document.getElementById('det-val-dtrpg');
+            if (p.dtrpg_url) {
+                dtrpgVal.innerHTML = '';
+                const a = document.createElement('a');
+                a.href = p.dtrpg_url;
+                a.textContent = p.dtrpg_title || 'DriveThruRPG';
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                dtrpgVal.appendChild(a);
+                dtrpgItem.classList.add('visible');
+            } else {
+                dtrpgItem.classList.remove('visible');
+            }
+        }
+
+        // ── Navigation (clamped — no wrap past either end) ─────────
+
+        function goTo(index) {
+            if (index < 0 || index >= products.length) return;
+            currentIndex = index;
+            render();
+        }
+
+        function goPrev() { if (currentIndex > 0) goTo(currentIndex - 1); }
+        function goNext() { if (currentIndex < products.length - 1) goTo(currentIndex + 1); }
+
+        // ── Details toggle ────────────────────────────────────────
+
+        function toggleDetails() {
+            const open = detPanel.classList.toggle('visible');
+            btnDetails.classList.toggle('active', open);
+            btnDetails.textContent = open ? 'Details ▲' : 'Details ▼';
+            btnDetails.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        // ── Event listeners ───────────────────────────────────────
+
+        document.getElementById('overlay-left').addEventListener('click', goPrev);
+        document.getElementById('overlay-right').addEventListener('click', goNext);
+
+        btnBack.addEventListener('click', () => { window.location.href = 'index.html'; });
+
+        btnDetails.addEventListener('click', toggleDetails);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft')                    goPrev();
+            else if (e.key === 'ArrowRight')              goNext();
+            else if (e.key === 'd' || e.key === 'D')      toggleDetails();
+            else if (e.key === 'Escape' || e.key === 'Backspace') btnBack.click();
+        });
+
+        window.addEventListener('hashchange', () => {
+            const id = getHashId();
+            if (id === null) return;
+            const idx = products.findIndex(p => p.id === id);
+            if (idx !== -1 && idx !== currentIndex) goTo(idx);
+        });
+
+        // ── Init ──────────────────────────────────────────────────
+
+        async function init() {
+            let allProducts;
+            try {
+                const resp = await fetch('products.json');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                allProducts = await resp.json();
+            } catch (e) {
+                errorMsg.textContent = 'Could not load products.json. Run via a local server.';
+                errorOverlay.classList.add('visible');
+                return;
+            }
+
+            // Curated order wins: walk HOTSITE_IDS, not products.json order.
+            const byId = new Map(allProducts.map(p => [p.id, p]));
+            products = HOTSITE_IDS.map(id => byId.get(id)).filter(Boolean);
+
+            if (products.length === 0) {
+                errorMsg.textContent = 'None of the featured products are in products.json.';
+                errorOverlay.classList.add('visible');
+                return;
+            }
+
+            // Deep link, but only within the curated set.
+            const hashId = getHashId();
+            if (hashId !== null) {
+                const idx = products.findIndex(p => p.id === hashId);
+                if (idx !== -1) currentIndex = idx;
+            }
+
+            render();
+        }
+
+        init();
+    </script>
+</body>
+</html>
