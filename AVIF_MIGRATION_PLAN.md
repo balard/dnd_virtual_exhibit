@@ -357,6 +357,13 @@ Update CLAUDE.md's "Workflow when adding a new year of images" and its
 
 ## Phase 2 — Quality gate (before converting anything)
 
+**Status: COMPLETE — q50 chosen.** The gate was run on the ten covers that
+compress *worst* at q50 (found by encoding a 220-file sample and ranking by
+output ratio), not the highest-bytes-per-pixel files: seven of the ten turned
+out to be text-heavy back covers, which is where AVIF's smoothing shows first.
+Verdict on inspection at 100%: little visible loss, q50 or q55 both acceptable.
+q50 taken for the extra 94 MB of headroom, since there is no second conversion.
+
 This is an art-appreciation site. AVIF smooths film grain and scan texture in
 ways PSNR does not punish, and painted 1970s–80s covers are exactly the content
 where that shows. **Look at the images before you convert 3,019 of them.**
@@ -393,6 +400,11 @@ If nothing below q55 passes, take q55 and the 658 MB row — it is still a
 
 ## Phase 3 — Bulk conversion into the staging tree
 
+**Status: COMPLETE.** 3,019 encoded at q50 / 4:4:4 / speed 6 across 12 cores in
+5m39s, 0 failures. `--verify`: 3,019 sources, 3,019 staged, 0 missing, 0
+undecodable, 0 dimension mismatches, 0 orphans. 943.3 MB -> 479.0 MB (50.8%),
+against a 50.9% projection.
+
 Nothing under `covers/` is touched in this phase. Sanity-check the projection
 first:
 
@@ -423,6 +435,14 @@ mis-sized.** Do not continue past a failure.
 ---
 
 ## Phase 4 — Promote, regenerate, and test locally (no commit)
+
+**Status: COMPLETE.** Promoted, `convert_csv.py` re-run, all six pages driven in
+a browser: index (front + flip to back, both `.avif`), spread (2/2), search
+(1,208 thumbs, 0 broken, still `.jpg`), both games (5/5 each), stats (5 charts).
+Empty error console throughout; `.avif` served as `image/avif`.
+
+**Published site: 590,337,845 B = 563.0 MiB**, down from 1,077,096,163 B.
+54.8% of the former size, 461 MiB of headroom under the cap.
 
 ```bash
 python tools/avif_convert.py --promote   # two renames; JPEGs -> covers.jpeg.bak/
@@ -464,6 +484,10 @@ this once before you need it.
 ---
 
 ## Phase 5 — Commit and ship
+
+**Status: committed as `0416232`, NOT PUSHED.** 6,039 files changed. The
+pre-push check came back clean: 3,019 deletions, 3,019 additions,
+`products.json`, and nothing else -- `covers.jpeg.bak/` correctly ignored.
 
 ```bash
 git add -A
