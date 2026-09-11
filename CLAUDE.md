@@ -20,7 +20,7 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - **products.json** — Product data consumed by the viewer at runtime via `fetch()`
 - **convert_csv.py** — Python 3 script that regenerates `products.json` from the CSV source
 - **download_covers.py** — Downloads cover images by year into `covers/full/` (as JPEG; run `--adopt` after)
-- **redownload_cover.py** — Force re-download of one or more product ids after fixing a `cover_url`; downloads to scratch files, swaps them in only once the front cover is safely on disk, then chains `--adopt` -> `generate_thumbs.py` -> `convert_csv.py`
+- **redownload_cover.py** — Re-download one or more product ids after fixing a `cover_url`. **Skips any id that already has a local cover unless `--force` is given** (the local file wins); downloads to scratch files and swaps them in only once the front cover is safely on disk, then chains `--adopt` -> `generate_thumbs.py` -> `convert_csv.py`
 - **tools/** — Migration and maintenance scripts: `avif_convert.py` (staged bulk conversion, `--verify`, `--promote`, `--revert`, and the steady-state `--adopt`), `avif_preview.py` (visual A/B quality gate), `verify_backup.py` (hashes a tar backup against the live tree)
 - **covers/full/** — Local image files, **AVIF** (q50, 4:4:4, full resolution): front covers named `{id}.avif`, back covers named `{id}-back.avif`; served via GitHub Pages. Converted from JPEG to get the published site back under the 1 GB Pages cap (1,077 MB -> 572 MB); see `AVIF_MIGRATION_PLAN.md`. Downloads still arrive as JPEG and are folded in with `tools/avif_convert.py --adopt`
 - **covers/thumb/** — 300px-wide **JPEG** thumbnails generated from `covers/full/`; used by `search.html`, `game.html` and `odd1out.html`. Deliberately NOT AVIF: at 300px AVIF saves almost nothing (and is *larger* above q55) while costing a second generation of loss and slower decode in a grid of hundreds. The two trees therefore differ in format — always derive thumb URLs with `thumbUrl()` from `utils.js`, never by string-swapping the directory
@@ -55,7 +55,8 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - `products.json` is generated — never hand-edit it; run `convert_csv.py` instead
 - `products.json` entries include 24 fields; CSV columns with spaces are normalized to underscores (`product_code`, `module_code`); `cover_url` points to a local path (`covers/full/{id}.avif`) if the image has been downloaded, otherwise the remote URL from covers.csv
 - `covers/full/` is AVIF and `covers/thumb/` is JPEG — never assume the two share an extension; use `thumbUrl()` from `utils.js`
-- A blank `cover_url` in covers.csv may be **deliberate** (upstream scan rejected, local cover hand-supplied). Do not "fix" one by sourcing a URL from tsrarchive without asking
+- **The local file always wins.** `covers/full/` is the authoritative source of cover art. `cover_url` / `backcover_url` in covers.csv are a *starting point and a fallback* — the URL that was used to seed the folder once, not a description of what is in it now. Covers get replaced by hand whenever a better scan is found, and **this divergence is expected to grow over time**. Never re-fetch over a file that already exists locally, never treat a URL as the source of truth, and never "repair" a local file to match its URL
+- A blank `cover_url` is therefore meaningful, not missing data: it says the upstream scan was rejected outright and the local file is the only cover. Do not source a replacement URL from tsrarchive to fill it
 - Dark theme colors are defined as CSS variables in `common.css` — edit them there, not in individual HTML files
 - Responsive breakpoint at 900px (3-column → 1-column layout)
 
@@ -113,7 +114,8 @@ automatically for exactly this reason.
 - Reads both `cover_url` and `backcover_url` from **`../tsr_products/covers.csv`** — not from `tsr_products.csv`, which has no `cover_url` column at all. It read the master table until it was fixed, so `load_remote_urls()` always came back empty and every id reported "not found in CSV"
 - Downloads to scratch `.{id}.download.*` files and swaps them in only once the front cover is safely on disk. It used to delete first, which meant a dead link or network blip left the product with no cover at all — worse now that `covers/full/` is the only copy of the image in the repo
 - Deletion is selective (`delete_existing(pid, front=, back=)`), so replacing only the front does not take an existing back cover with it
-- An id absent from covers.csv is reported and skipped without deleting anything — which is what makes a **deliberately blank `cover_url`** safe. Some products (notably the "Complete" line) carry a hand-picked local cover precisely because the upstream scan was rejected; the blank is the signal, and nothing should try to "fix" it by fetching from tsrarchive
+- **Refuses by default to overwrite a cover that already exists locally** — it reports the existing files and skips. `--force` is required to replace one, and there is no undo beyond git. This is the local-file-wins rule enforced in the one tool whose whole job is to pull from upstream
+- An id absent from covers.csv is reported and skipped without deleting anything, so a deliberately blank `cover_url` is safe from both directions
 - Chains `tools/avif_convert.py --adopt` -> `generate_thumbs.py` -> `convert_csv.py` automatically after downloading
 
 ## convert_csv.py internals

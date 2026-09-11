@@ -1,17 +1,29 @@
 """
-redownload_cover.py — Force re-download of cover images for one or more product IDs.
+redownload_cover.py — Re-download cover images for one or more product IDs.
 
-Use this after correcting a product's cover_url in the CSV. It reads the remote
-URL directly from the CSV (bypassing products.json), deletes any existing cover
-files for each ID, downloads fresh front and back covers, then regenerates
+Use this after correcting a product's cover_url in covers.csv. It reads the
+remote URLs from covers.csv (bypassing products.json), downloads fresh front
+and back covers, converts them to AVIF, and regenerates the thumbnails and
 products.json automatically.
 
+IMPORTANT — the local file wins.
+    covers/full/ is the authoritative source of cover art for this project.
+    cover_url / backcover_url in covers.csv are a *starting point and a
+    fallback*, not the truth: many covers here have been replaced by hand
+    because the upstream scan was poor, and that divergence is expected to
+    grow as better files are found.
+
+    So this script REFUSES by default to overwrite a cover that already
+    exists locally. Pass --force only when you have decided the upstream
+    file is genuinely better than the one in the folder. There is no undo
+    beyond git.
+
 Usage:
-    python redownload_cover.py <id> [id2 id3 ...]
+    python redownload_cover.py <id> [id2 id3 ...] [--force]
 
 Examples:
-    python redownload_cover.py 554
-    python redownload_cover.py 554 420 516
+    python redownload_cover.py 554            # fetches only if 554 has no local file
+    python redownload_cover.py 554 --force    # replaces the curated local file
 """
 
 import csv as csv_module
@@ -93,16 +105,24 @@ def delete_existing(pid, front=True, back=True):
 
 
 def main():
-    if len(sys.argv) < 2 or not all(a.isdigit() for a in sys.argv[1:]):
-        print('Usage: python redownload_cover.py <id> [id2 id3 ...]')
+    args = sys.argv[1:]
+    force = '--force' in args
+    id_args = [a for a in args if a != '--force']
+
+    if not id_args or not all(a.isdigit() for a in id_args):
+        print('Usage: python redownload_cover.py <id> [id2 id3 ...] [--force]')
         print('Example: python redownload_cover.py 554')
+        print()
+        print('Without --force, ids that already have a local cover are skipped:')
+        print('covers/full/ is authoritative and covers.csv is only a fallback.')
         sys.exit(1)
 
-    ids = [int(a) for a in sys.argv[1:]]
+    ids = [int(a) for a in id_args]
     remote_urls = load_remote_urls()
 
     ok = 0
     failed = 0
+    skipped = 0
 
     for pid in ids:
         print(f'\n--- id={pid} ---')
@@ -117,6 +137,20 @@ def main():
         if not url.startswith('http'):
             print(f'  ERROR: cover_url for id={pid} is not a remote URL: {url}')
             failed += 1
+            continue
+
+        # The folder wins. A cover already sitting in covers/full/ may well be
+        # a hand-picked replacement for a poor upstream scan, and covers.csv
+        # has no way to express that -- so never silently trade it for the
+        # remote file.
+        existing = sorted(f.name for pat in (f'{pid}.*', f'{pid}-back.*')
+                          for f in OUTPUT_DIR.glob(pat))
+        if existing and not force:
+            print(f'  SKIP id={pid}: local cover already present '
+                  f'({", ".join(existing)})')
+            print('       covers/full/ is authoritative; covers.csv is a fallback.')
+            print('       Re-run with --force only if the upstream file is better.')
+            skipped += 1
             continue
 
         # Download to scratch files FIRST and only swap them in once the front
