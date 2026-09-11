@@ -26,9 +26,12 @@ GitHub's rule is "published GitHub Pages sites may be no larger than 1 GB." The
 site is past that on the decimal reading and just past it on the binary one.
 This is no longer preventative work.
 
-Note the `.git` figure: **421 MiB of it is loose objects.** A plain `git gc`
-reclaims a large part of that with no history rewriting at all. That matters for
-Phase 6.
+Note the `.git` figure: 421 MiB of it is loose objects.
+
+> **This was misread, and Phase 6 records the correction.** Loose objects are
+> not slack — they are content that has not been packed yet. `git gc` packs
+> them; it cannot discard anything still reachable from history. The actual
+> reclaim was **29 MB**, not "a large part of 421 MiB".
 
 ---
 
@@ -485,7 +488,12 @@ this once before you need it.
 
 ## Phase 5 — Commit and ship
 
-**Status: COMMITTED, NOT PUSHED — this is the only phase still open.**
+**Status: COMPLETE.** Pushed; the Pages deploy succeeded with no 404s. Verified
+independently against the live site: `covers/full/1.avif` and
+`covers/full/1968.avif` return `image/avif`, `covers/thumb/1968.jpg` returns
+`image/jpeg` (the format split holds in production), `products.json` 200.
+
+Original status line follows for the record:
 `0416232` changed 6,039 files; the pre-push check was clean (3,019 deletions,
 3,019 additions, `products.json`, nothing else, `covers.jpeg.bak/` ignored).
 
@@ -566,14 +574,24 @@ After Phase 5 the *published site* problem is solved. The *repository size*
 problem is a different one, and the earlier draft bundled them together. Keep
 them apart.
 
-**Do this — it is free and reversible:**
+**Status: DONE.** `git gc --prune=now`, 35s, `git fsck` clean afterwards.
 
-```bash
-git gc --prune=now
+```
+             before                 after
+  .git       1,498 MB               1,469 MB      (-29 MB)
+  loose      911.47 MiB             0
+  pack       570.88 MiB             1.43 GiB
 ```
 
-421 MiB of `.git` is currently loose objects. This repacks them with no history
-rewriting, no force-push, and no risk.
+**The prediction in this plan was wrong and the result is worth understanding.**
+The loose objects were not reclaimable slack; they were the newly written AVIF
+blobs waiting to be packed. `gc` packed them, which is why the pack grew by
+roughly what the loose store shrank by. Nothing reachable from history can be
+dropped, so the only real saving was genuine garbage: 29 MB.
+
+`.git` now sits at ~1.43 GiB and will stay there. It holds both formats: the
+AVIF at HEAD and the JPEG blobs throughout history. That is well inside
+GitHub's 5 GB soft limit and costs nothing but local disk.
 
 **Consider this separately, later, or not at all:**
 
@@ -587,7 +605,8 @@ gone from GitHub. Weigh that against what it actually buys:
 - Local `.git` size costs disk, nothing else.
 - Clone time for a solo repo you have already cloned is not a real cost.
 
-Recommendation: **run `git gc`, skip `filter-repo`.** Revisit it only if the
+Recommendation: **`git gc` is done; do NOT run `filter-repo` — not now, not
+later.** The reason has grown stronger since this plan was written. `covers/full/` is the authoritative source of cover art and diverges from the upstream URLs over time as better scans replace poor ones, which means **git history is the only record of every superseded cover**. The URLs in covers.csv cannot reconstruct them: they point at the files that were rejected. Purging the JPEG blobs would not be reclaiming space, it would be destroying curation work. Revisit it only if the
 repo approaches 5 GB, at which point the right answer is more likely to be
 moving images out of git entirely (see below) than rewriting history again.
 
