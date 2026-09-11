@@ -485,9 +485,34 @@ this once before you need it.
 
 ## Phase 5 — Commit and ship
 
-**Status: committed as `0416232`, NOT PUSHED.** 6,039 files changed. The
-pre-push check came back clean: 3,019 deletions, 3,019 additions,
-`products.json`, and nothing else -- `covers.jpeg.bak/` correctly ignored.
+**Status: COMMITTED, NOT PUSHED — this is the only phase still open.**
+`0416232` changed 6,039 files; the pre-push check was clean (3,019 deletions,
+3,019 additions, `products.json`, nothing else, `covers.jpeg.bak/` ignored).
+
+Still to do, in order:
+1. `git push` (11 commits: 4 predate the migration)
+2. Confirm the Pages deploy succeeds and no size warning appears
+3. Load the live index / spread / search; check for 404s and `image/avif`
+4. Only then `rm -rf covers.jpeg.bak` — the D: tar stays as the permanent backup
+
+### Work done after the conversion, outside the phases
+
+Folding the deferred 31-product import through the steady-state path turned
+up three faults in the cover pipeline that the plan never anticipated:
+
+- `download_covers.py` tested for `{id}-back.jpg` specifically, so after the
+  migration it saw all 1,172 downloaded back covers as missing and would have
+  re-fetched them as JPEG (~350 MB of duplicates). Now extension-agnostic.
+- `redownload_cover.py` read `cover_url` from `tsr_products.csv`, which has no
+  such column — it resolved zero ids and had been entirely non-functional.
+- The same script deleted the existing cover *before* downloading the
+  replacement, so a dead link left the product with nothing. Now downloads to
+  scratch files and swaps in only on success — and refuses outright to
+  overwrite a local cover without `--force`, because `covers/full/` is
+  authoritative and covers.csv is only a fallback.
+
+CLAUDE.md's add-a-year workflow also had `convert_csv.py` running *before* the
+conversion, which would record `.jpg` paths for covers about to become `.avif`.
 
 ```bash
 git add -A
