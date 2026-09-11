@@ -334,7 +334,10 @@
       { key: 'authors',      label: 'Author' },
     ];
 
-    // Exclude these as the "common group" value (too generic / not real identities)
+    // Exclude these as the "common group" value (too generic / not real identities).
+    // 'Various' was the magazines' catch-all setting until it was retired upstream
+    // for a blank setting -- magazines are now caught by the null entry instead.
+    // The string is kept as a guard in case the label ever comes back.
     const EXCLUDED_COMMON = new Set(['N/A', 'Various', 'NOT FOUND', null]);
 
     const MIN_POOL = 4;   // minimum products sharing a value to be eligible

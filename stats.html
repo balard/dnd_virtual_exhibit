@@ -276,7 +276,7 @@
         'Celtic': '#d7a85b', 'Dragonlance': '#a76844', 'Conan': '#a74644',
         'Forgotten Realms': '#a76c44', 'Kara-Tur': '#a75f44', 'Lankhmar': '#ae673d',
         'Planescape': '#a75844', 'Spelljammer': '#b56c4a', 'Dark Sun': '#bd9058',
-        'Thunder Rift': '#a76044', 'Al-Qadim': '#b87750', 'Mystara (2E)': '#a75a44',
+        'Thunder Rift': '#a76044', 'Al-Qadim': '#b87750',
         'Birthright': '#a77d44', 'Diablo': '#a75344', 'Chainmail': '#92a744', 'Eberron': '#a75e44',
         'Points of Light': '#a76844'
     };
@@ -590,13 +590,16 @@
     }
 
     /* ── Chart 4: Campaign settings (horizontal bar) ──────────── */
-    // Excludes magazines' catch-all "Various" and products with no setting,
-    // so named campaign worlds rank honestly.
+    // Excludes products with no setting, so named campaign worlds rank
+    // honestly. Magazines land in that bucket now: they used to carry the
+    // catch-all setting "Various", retired upstream in favour of a blank
+    // setting, so the '(none)' delete covers them. The 'Various' delete is
+    // kept only as a guard in case the label ever comes back.
 
     function buildSettings(products) {
         var settingCounts = countBy(products, 'setting');
         delete settingCounts['(none)'];
-        delete settingCounts['Various'];
+        delete settingCounts['Various'];   // retired upstream; guard only
 
         var settingEntries = sortedEntries(settingCounts, 12);
 
