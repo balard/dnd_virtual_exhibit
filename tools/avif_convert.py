@@ -13,6 +13,14 @@ covers/thumb/ is deliberately NOT touched. At 300px AVIF is barely smaller
 than the existing JPEG q75 thumbs (and larger above q55), while costing a
 second generation of loss and slower decode in the search grid.
 
+--adopt is the only mode in routine use; see "Steady state" below. The staging
+flow (--dry-run / --quality / --verify / --promote / --revert) was built for the
+one-time JPEG->AVIF migration and is now dormant. It is kept because it is the
+tested path for any future bulk re-encode -- e.g. restoring the JPEG masters
+from the off-machine tar and converting them at a different quality. --revert
+needs covers.jpeg.bak/, which was deleted after the migration shipped, so it
+will refuse until a --promote recreates it.
+
 Usage:
     python tools/avif_convert.py --dry-run              # measure a sample, write nothing
     python tools/avif_convert.py --quality 50           # fill the staging tree
