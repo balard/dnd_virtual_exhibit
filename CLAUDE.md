@@ -16,12 +16,14 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 - **odd1out.html** — "Odd One Out" mini-game: identify which of 5 cover cards doesn't share a common attribute (year, setting, system, type, artist, author); single mode (no difficulty picker); streak counter; draws rounds from the active search-filter universe (shared via `tsr_active_filters`) — same banner + warn+block behavior as game.html; links `common.css` and `utils.js`
 - **debug.html** — Developer tool: shows all 24 fields per product in a 7-product context window (±3 around current); same dark theme; keyboard nav (←/→/Home/End)
 - **common.css** — Shared CSS: design tokens (CSS variables `--bg`, `--bg2`, `--card`, `--border`, `--accent`, `--text`, `--muted`), error overlay styles, and the game filter banner/warning styles (`.filter-banner`, `.filter-warning`); linked by all HTML pages
-- **utils.js** — Shared JS: `FILTERS_KEY`, `FILTERS_SEEDED_KEY`, `MONTH_NAMES`, `TEXT_FIELDS`, `loadActiveFilters()`, `filtersActive()` (true if any filter criterion is set — drives the gallery filter-indicator and spread filter-badge visibility, independent of whether the filter reduces the count), `applyFiltersToProducts()`; also runs a one-time seed on load that defaults the filter to exclude magazines (see search.html internals); loaded by index.html, search.html, spread.html, game.html, odd1out.html, stats.html
+- **utils.js** — Shared JS: `FILTERS_KEY`, `FILTERS_SEEDED_KEY`, `MONTH_NAMES`, `TEXT_FIELDS`, `loadActiveFilters()`, `filtersActive()` (true if any filter criterion is set — drives the gallery filter-indicator and spread filter-badge visibility, independent of whether the filter reduces the count), `applyFiltersToProducts()`, `thumbUrl()` (maps a `covers/full/{id}.avif` cover_url to its `covers/thumb/{id}.jpg` thumbnail — rewrites the extension as well as the directory, returns null for a coverless product, and passes remote fallback URLs through unchanged); also runs a one-time seed on load that defaults the filter to exclude magazines (see search.html internals); loaded by index.html, search.html, spread.html, game.html, odd1out.html, stats.html
 - **products.json** — Product data consumed by the viewer at runtime via `fetch()`
 - **convert_csv.py** — Python 3 script that regenerates `products.json` from the CSV source
-- **download_covers.py** — Downloads cover images by year into `covers/full/`
-- **covers/full/** — Local image files: front covers named `{id}.{ext}`, back covers named `{id}-back.{ext}`; served via GitHub Pages
-- **covers/thumb/** — 300px-wide JPEG thumbnails generated from `covers/full/`; used by `search.html` and `game.html`
+- **download_covers.py** — Downloads cover images by year into `covers/full/` (as JPEG; run `--adopt` after)
+- **redownload_cover.py** — Force re-download of one or more product ids after fixing a `cover_url`; downloads to scratch files, swaps them in only once the front cover is safely on disk, then chains `--adopt` -> `generate_thumbs.py` -> `convert_csv.py`
+- **tools/** — Migration and maintenance scripts: `avif_convert.py` (staged bulk conversion, `--verify`, `--promote`, `--revert`, and the steady-state `--adopt`), `avif_preview.py` (visual A/B quality gate), `verify_backup.py` (hashes a tar backup against the live tree)
+- **covers/full/** — Local image files, **AVIF** (q50, 4:4:4, full resolution): front covers named `{id}.avif`, back covers named `{id}-back.avif`; served via GitHub Pages. Converted from JPEG to get the published site back under the 1 GB Pages cap (1,077 MB -> 572 MB); see `AVIF_MIGRATION_PLAN.md`. Downloads still arrive as JPEG and are folded in with `tools/avif_convert.py --adopt`
+- **covers/thumb/** — 300px-wide **JPEG** thumbnails generated from `covers/full/`; used by `search.html`, `game.html` and `odd1out.html`. Deliberately NOT AVIF: at 300px AVIF saves almost nothing (and is *larger* above q55) while costing a second generation of loss and slower decode in a grid of hundreds. The two trees therefore differ in format — always derive thumb URLs with `thumbUrl()` from `utils.js`, never by string-swapping the directory
 - **generate_thumbs.py** — Python 3 script that generates `covers/thumb/` from `covers/full/` (requires Pillow)
 - **../tsr_products/tsr_products.csv** — Master product table (19 cols: id through semester, includes publisher; no cover_url)
 - **../tsr_products/covers.csv** — Cover URLs (3 cols: id, cover_url, backcover_url)
@@ -51,7 +53,9 @@ spanning publications from 1974 onward (D&D, AD&D, and related products).
 ## Key Conventions
 - Page-specific logic stays in its own HTML file; shared filter logic lives in `utils.js`; shared styles in `common.css`
 - `products.json` is generated — never hand-edit it; run `convert_csv.py` instead
-- `products.json` entries include 24 fields; CSV columns with spaces are normalized to underscores (`product_code`, `module_code`); `cover_url` points to a local path (`covers/full/{id}.jpg`) if the image has been downloaded, otherwise the remote URL from covers.csv
+- `products.json` entries include 24 fields; CSV columns with spaces are normalized to underscores (`product_code`, `module_code`); `cover_url` points to a local path (`covers/full/{id}.avif`) if the image has been downloaded, otherwise the remote URL from covers.csv
+- `covers/full/` is AVIF and `covers/thumb/` is JPEG — never assume the two share an extension; use `thumbUrl()` from `utils.js`
+- A blank `cover_url` in covers.csv may be **deliberate** (upstream scan rejected, local cover hand-supplied). Do not "fix" one by sourcing a URL from tsrarchive without asking
 - Dark theme colors are defined as CSS variables in `common.css` — edit them there, not in individual HTML files
 - Responsive breakpoint at 900px (3-column → 1-column layout)
 
@@ -72,7 +76,7 @@ To download covers for a specific year (run *before* regenerating JSON):
 python download_covers.py <year>
 ```
 Output:
-- `covers/full/{id}.{ext}` — front cover, named by the product's CSV `id` field
+- `covers/full/{id}.{ext}` — front cover, named by the product's CSV `id` field (JPEG on arrival; converted to `.avif` by `--adopt`)
 - `covers/full/{id}-back.{ext}` — back cover (URL read from `covers.csv` `backcover_url` column)
 
 - Already-downloaded files are skipped automatically (idempotent).
@@ -80,21 +84,37 @@ Output:
 - 404s on back covers are expected — not all products have back cover images on tsrarchive.com.
 
 **Workflow when adding a new year of images:**
-1. `python download_covers.py <year>`
-2. `python convert_csv.py` ← regenerate JSON; local paths are picked up automatically
-3. `python generate_thumbs.py <start_id> <end_id>` ← generate thumbnails for the new products
+1. `python download_covers.py <year>` ← covers arrive as JPEG
+2. `python tools/avif_convert.py --adopt` ← **required**: converts each stray JPEG to AVIF in place, checks the result decodes at identical dimensions, and only then deletes the JPEG
+3. `python generate_thumbs.py <start_id> <end_id>` ← thumbnails, generated from the AVIF
+4. `python convert_csv.py` ← regenerate JSON **last**; local paths are picked up automatically
+
+The order matters. `convert_csv.py` must run *after* `--adopt`, or it records
+`covers/full/{id}.jpg` for covers that are about to become `.avif` and every one
+of those products renders a broken image. `redownload_cover.py` chains steps 2–4
+automatically for exactly this reason.
 
 ## generate_thumbs.py internals
-- Reads `covers/full/` (`.jpg`/`.jpeg`, case-insensitive) and writes 300px-wide JPEGs to `covers/thumb/`
+- Reads `covers/full/` (`.avif`/`.jpg`/`.jpeg`, case-insensitive) and writes 300px-wide JPEGs to `covers/thumb/`
+- Output is named by *stem*, so an `.avif` source still yields a `.jpg` thumbnail
+- The source glob is deduped with `set()` — Windows matches globs case-insensitively, so `*.jpg`/`*.JPG` would otherwise return every file twice
 - Maintains aspect ratio; JPEG quality 75; uses Pillow (`pip install Pillow`)
 - Idempotent — existing files are skipped
 - Optional ID range: `python generate_thumbs.py <start_id> <end_id>`
-- `search.html` and `game.html` derive thumb URLs via `cover_url.replace('/full/', '/thumb/')`
+- `search.html`, `game.html` and `odd1out.html` derive thumb URLs via `thumbUrl(cover_url)` from `utils.js` — a bare `.replace('/full/', '/thumb/')` is wrong now that the two trees use different formats
 
 ## download_covers.py internals
 - Reads `products.json` to filter products by year
 - Reads `../tsr_products/covers.csv` to get `backcover_url` for each product directly (no URL derivation needed)
-- Both front and back downloads are idempotent — existing files are skipped
+- Both front and back downloads are idempotent — existing files are skipped via `local_cover_exists()`, which globs `{id}.*` / `{id}-back.*` and is **extension-agnostic**. This matters: the check used to test for `{id}-back.jpg` specifically, and after the AVIF migration that reported all 1,172 already-downloaded back covers as missing. Never reintroduce a fixed suffix here
+- Targets are products whose `cover_url` is truthy, so **a product with no front cover never gets its back cover fetched either** (this is why id=1968 kept a hotlinked `backcover_url` until its front was supplied)
+
+## redownload_cover.py internals
+- Reads both `cover_url` and `backcover_url` from **`../tsr_products/covers.csv`** — not from `tsr_products.csv`, which has no `cover_url` column at all. It read the master table until it was fixed, so `load_remote_urls()` always came back empty and every id reported "not found in CSV"
+- Downloads to scratch `.{id}.download.*` files and swaps them in only once the front cover is safely on disk. It used to delete first, which meant a dead link or network blip left the product with no cover at all — worse now that `covers/full/` is the only copy of the image in the repo
+- Deletion is selective (`delete_existing(pid, front=, back=)`), so replacing only the front does not take an existing back cover with it
+- An id absent from covers.csv is reported and skipped without deleting anything — which is what makes a **deliberately blank `cover_url`** safe. Some products (notably the "Complete" line) carry a hand-picked local cover precisely because the upstream scan was rejected; the blank is the signal, and nothing should try to "fix" it by fetching from tsrarchive
+- Chains `tools/avif_convert.py --adopt` -> `generate_thumbs.py` -> `convert_csv.py` automatically after downloading
 
 ## convert_csv.py internals
 - Joins 4 CSV files on `id`: tsr_products.csv (main), covers.csv, blurbs.csv, dtrpg.csv
@@ -109,7 +129,7 @@ Output:
 - **Missing-cover reporting.** Every product is expected to have a front cover; a missing back cover is normal. Both are reported, at different volumes, and *neither* drops the product any more:
   - **`ACTION NEEDED` (banner, printed last)** — no front cover anywhere (no `covers/full/{id}.*` **and** no `cover_url` in covers.csv). The product **is still exported**, with `cover_url: null`, so the record stays browsable and correctable later. Lists id, year, title, type, and both fixes: drop the image at `covers/full/{id}.jpg`, or add a `cover_url` for that id in covers.csv. This was a silent `continue` until ids 1921–1924 (the 1994 Player Packs) were found missing from every import with no trace
   - **`WARNING`** — no back cover. Always reported, since art can turn up later. Non-magazine products are listed individually (currently 8); the ~651 magazines legitimately never had backs and are collapsed to a trailing count so they don't bury the actionable ones
-- **`cover_url` is nullable** as a result. Consumers must guard it: assigning `null` to `img.src` requests `/null` and 404s, and `null.replace(...)` throws. `search.html` renders a dashed "No cover yet" placeholder card, `index.html` and `spread.html` show their existing "not available" state without issuing a request, and both games (`game.html`, `odd1out.html`) drop coverless products from the pool since judging cover art is the whole point
+- **`cover_url` is nullable** as a result, and a null can be intentional as well as accidental. Consumers must guard it: assigning `null` to `img.src` requests `/null` and 404s, and `thumbUrl(null)` returns null rather than throwing. `search.html` renders a dashed "No cover yet" placeholder card, `index.html` and `spread.html` show their existing "not available" state without issuing a request, and both games (`game.html`, `odd1out.html`) drop coverless products from the pool since judging cover art is the whole point
 - Exits with a clear error if any source CSV file is missing
 
 ## Image Download Progress
