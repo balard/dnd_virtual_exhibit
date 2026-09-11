@@ -45,8 +45,10 @@ def main():
         print(f"Source directory not found: {SOURCE_DIR}")
         sys.exit(1)
 
-    all_files = sorted(f for ext in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.avif", "*.AVIF")
-                       for f in SOURCE_DIR.glob(ext))
+    # set() because Windows globs case-insensitively, so "*.jpg" and "*.JPG"
+    # return the same files and every image would be visited twice.
+    all_files = sorted({f for ext in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.avif", "*.AVIF")
+                        for f in SOURCE_DIR.glob(ext)})
 
     if id_range:
         start, end = id_range
