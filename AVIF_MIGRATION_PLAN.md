@@ -237,6 +237,12 @@ guaranteed to work. Do not skip this.
 
 ## Phase 1 — Update the pipeline and the thumbnail URL derivation
 
+**Status: COMPLETE** — commits `b43ad1d` (plan + tooling) and `0c5af9d`
+(the code changes). Verified as a true no-op: `convert_csv.py` emitted
+byte-identical output before and after, and all five pages were checked in a
+browser against the still-JPEG tree with zero broken images and an empty
+console. Not pushed.
+
 **These come first, before anything is converted.** Every one of the four
 changes below is an exact no-op against the current all-JPEG tree — verified:
 `covers/full/` and `covers/thumb/` are 3,019 `.jpg` files each, with no
