@@ -36,6 +36,19 @@ def get_extension(url):
     return ext.lower() if ext else '.jpg'
 
 
+def local_cover_exists(pid, back=False):
+    """True if a local cover file exists for this id, whatever its extension.
+
+    The extension is not fixed. covers/full/ holds AVIF after the migration
+    while downloads still arrive as JPEG from the archives, so testing for one
+    specific suffix would report "missing" for every already-converted cover
+    and re-download the lot.
+    """
+    stem = f'{pid}-back' if back else str(pid)
+    return any(OUTPUT_DIR.glob(f'{stem}.*'))
+
+
+
 def download_image(url, dest_path):
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req, timeout=15) as response:
@@ -90,13 +103,12 @@ def main():
     for i, product in enumerate(targets, 1):
         pid = product['id']
         url = product['cover_url']
-        ext = get_extension(url)
-        dest = OUTPUT_DIR / f'{pid}{ext}'
+        dest = OUTPUT_DIR / f'{pid}{get_extension(url)}'
 
         prefix = f'[{i}/{len(targets)}]'
 
         # --- front cover ---
-        if dest.exists() or not url.startswith('http'):
+        if local_cover_exists(pid) or not url.startswith('http'):
             print(f'{prefix} Skip id={pid} front (already exists)')
             skipped += 1
         else:
@@ -113,9 +125,8 @@ def main():
         # --- back cover ---
         b_url = back_urls.get(pid)
         if b_url and b_url.startswith('http'):
-            back_ext = get_extension(b_url)
-            back_dest = OUTPUT_DIR / f'{pid}-back{back_ext}'
-            if back_dest.exists():
+            back_dest = OUTPUT_DIR / f'{pid}-back{get_extension(b_url)}'
+            if local_cover_exists(pid, back=True):
                 print(f'{prefix} Skip id={pid} back (already exists)')
                 skipped += 1
             else:
