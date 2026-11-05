@@ -298,6 +298,14 @@
             <span id="result-count"></span>
         </div>
 
+        <div class="filter-row" id="group-row" style="display:none;">
+            <span class="filter-label">Group</span>
+            <div class="pill-group">
+                <button id="group-chip" class="pill active" title="Remove this product group">
+                    <span id="group-chip-label"></span> &#215;
+                </button>
+            </div>
+        </div>
         <div class="filter-row">
             <span class="filter-label">Type</span>
             <div class="pill-group" id="pills-type"></div>
@@ -339,6 +347,8 @@
         };
         let searchText = '';
         let titleOnly = false;
+        let groupIds = null;     // Set of product ids from a shared link, or null
+        let groupName = null;    // preset name (ID_SETS key) when the group is exactly one
         let debounceTimer = null;
 
         const btnClearFilters = document.getElementById('btn-clear-filters');
@@ -353,7 +363,8 @@
         // ── Filter persistence ────────────────────────────────────
 
         function updateClearButton() {
-            const hasFilters = activeFilters.type.size > 0
+            const hasFilters = groupIds !== null
+                || activeFilters.type.size > 0
                 || activeFilters.system.size > 0
                 || activeFilters.setting.size > 0
                 || activeFilters.publisher.size > 0
@@ -377,8 +388,27 @@
                 exclude_system:    [...excludedFilters.system],
                 exclude_setting:   [...excludedFilters.setting],
                 exclude_publisher: [...excludedFilters.publisher],
+                ...(groupIds ? { ids: [...groupIds], id_set: groupName } : {}),
             };
         }
+
+        function updateGroupChip() {
+            document.getElementById('group-row').style.display = groupIds ? '' : 'none';
+            if (!groupIds) return;
+            document.getElementById('group-chip').classList.add('active');  // Clear Filters strips .active from every .pill
+            const n = groupIds.size;
+            document.getElementById('group-chip-label').textContent =
+                (groupName ? `Set \u201C${groupName}\u201D` : 'Custom set')
+                + `: ${n} product${n !== 1 ? 's' : ''}`;
+        }
+
+        document.getElementById('group-chip').addEventListener('click', () => {
+            groupIds = null;
+            groupName = null;
+            updateGroupChip();
+            saveFilters();
+            renderResults();
+        });
 
         function saveFilters() {
             localStorage.setItem(FILTERS_KEY, JSON.stringify(currentFilters()));
@@ -404,6 +434,16 @@
                     }
                 }
             }
+            // Product group from a shared link: keep only ids that exist
+            if (Array.isArray(saved.ids) && saved.ids.length) {
+                const known = new Set(products.map(p => p.id));
+                const kept = saved.ids.filter(id => known.has(id));
+                if (kept.length !== saved.ids.length) dropped = true;
+                if (kept.length) {
+                    groupIds = new Set(kept);
+                    groupName = kept.length === saved.ids.length ? (saved.id_set || null) : null;
+                }
+            }
             searchText = saved.text || '';
             searchInput.value = searchText;
             titleOnly = !!saved.text_title_only;
@@ -420,6 +460,9 @@
             excludedFilters.system.clear();
             excludedFilters.setting.clear();
             excludedFilters.publisher.clear();
+            groupIds = null;
+            groupName = null;
+            updateGroupChip();
             searchText = '';
             searchInput.value = '';
             titleOnly = false;
@@ -447,6 +490,7 @@
         function applyFilters() {
             const q = searchText.toLowerCase();
             return products.filter(p =>
+                (!groupIds || groupIds.has(p.id)) &&
                 matchesText(p, q) &&
                 (activeFilters.type.size === 0      || activeFilters.type.has(p.type)) &&
                 (activeFilters.system.size === 0    || activeFilters.system.has(p.system)) &&
@@ -674,6 +718,7 @@
                     }
                 });
             }
+            updateGroupChip();
             updateClearButton();
             renderResults();
         }

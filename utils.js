@@ -31,11 +31,25 @@ const FILTERS_SEEDED_KEY = 'tsr_filters_seeded';
 // values repeat the key. `v` is mandatory: it marks the URL as a shared filter
 // (so `?v=1` alone means "no filter — show everything", distinct from a bare
 // URL, which keeps the visitor's own filter) and versions the format.
+// A link can also restrict to a fixed group of products, AND-ed with the rest:
+//   ids=37,55,36   explicit product ids (commas and/or repeated keys)
+//   set=hotsite    a named preset from ID_SETS below
+// Both may be given; the group is their union. The group is stored as `ids`
+// in the filter (plus `id_set`, the preset name, when the group is exactly
+// that preset), so every page honours it via applyFiltersToProducts().
+// Products always show in catalogue order — the order of the ids is ignored.
 // These names are a public contract once links are out — do not rename them.
 const SHARE_VERSION = '1';
 const SHARE_CATEGORIES = ['type', 'system', 'setting', 'publisher'];
-const SHARE_PARAMS = ['v', 'q', 'title',
+const SHARE_PARAMS = ['v', 'q', 'title', 'ids', 'set',
     ...SHARE_CATEGORIES, ...SHARE_CATEGORIES.map(c => 'x' + c)];
+
+// Named product groups for `set=`. Preset names are part of the link contract
+// too. `hotsite` is a deliberate copy of hotsite.html's HOTSITE_IDS, not a
+// reference to it — hotsite.html stays isolated and may be deleted.
+const ID_SETS = {
+    hotsite: [37, 55, 36, 151, 267, 1993, 77],
+};
 
 /** Build an absolute shareable URL for `page` encoding the filter object. */
 function buildShareUrl(filters, page = 'search.html') {
@@ -51,6 +65,10 @@ function buildShareUrl(filters, page = 'search.html') {
     }
     if (f.text) sp.set('q', f.text);
     if (f.text_title_only) sp.set('title', '1');
+    if (f.id_set && ID_SETS[f.id_set]) sp.set('set', f.id_set);
+    else if (f.ids && f.ids.length) sp.set('ids', f.ids.join(','));
+    // Commas are legal in a query; keep ids=37,55,36 readable instead of %2C
+    url.search = sp.toString().replace(/%2C/gi, ',');
     return url.toString();
 }
 
@@ -71,6 +89,18 @@ function buildShareUrl(filters, page = 'search.html') {
         for (const c of SHARE_CATEGORIES) {
             filters[c] = sp.getAll(c);
             filters['exclude_' + c] = sp.getAll('x' + c);
+        }
+        // Product group: union of set= presets and ids=. Unknown preset names
+        // and non-numeric ids are ignored.
+        const sets = sp.getAll('set').filter(n => Object.hasOwn(ID_SETS, n));
+        const explicit = sp.getAll('ids').flatMap(v => v.split(','))
+            .map(v => Number(v.trim())).filter(n => Number.isInteger(n) && n > 0);
+        const ids = [...new Set([...sets.flatMap(n => ID_SETS[n]), ...explicit])];
+        if (ids.length) {
+            filters.ids = ids;
+            // Remember the preset name only if the group is exactly that preset
+            if (sets.length === 1 && ids.length === ID_SETS[sets[0]].length
+                && new Set(ID_SETS[sets[0]]).size === ids.length) filters.id_set = sets[0];
         }
         localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
         localStorage.setItem(FILTERS_SEEDED_KEY, '1');
@@ -115,7 +145,7 @@ function loadActiveFilters() {
 }
 
 /**
- * True if the filter object has any active criterion (any of the 9 keys).
+ * True if the filter object has any active criterion (any of the 10 keys).
  * Drives filter-indicator visibility independently of whether the filter
  * actually reduces the product count (a filter can be active yet non-reducing,
  * e.g. excluding a value no product has).
@@ -123,7 +153,7 @@ function loadActiveFilters() {
 function filtersActive(filters) {
     if (!filters) return false;
     const len = k => Array.isArray(filters[k]) ? filters[k].length : 0;
-    return !!(len('type') || len('system') || len('setting') || len('publisher')
+    return !!(len('ids') || len('type') || len('system') || len('setting') || len('publisher')
            || len('exclude_type') || len('exclude_system')
            || len('exclude_setting') || len('exclude_publisher')
            || (filters.text && filters.text.length));
@@ -137,11 +167,13 @@ function filtersActive(filters) {
  */
 function applyFiltersToProducts(all, filters) {
     if (!filters) return all;
-    const { type, system, setting, publisher, text, text_title_only,
+    const { ids, type, system, setting, publisher, text, text_title_only,
             exclude_type, exclude_system, exclude_setting, exclude_publisher } = filters;
     const q = (text || '').toLowerCase();
     const textFields = text_title_only ? ['title'] : TEXT_FIELDS;
+    const idSet = ids && ids.length ? new Set(ids) : null;
     return all.filter(p => {
+        if (idSet && !idSet.has(p.id))                                                     return false;
         if (type      && type.length      && !type.includes(p.type))                       return false;
         if (system    && system.length    && !system.includes(p.system))                   return false;
         if (setting   && setting.length   && !setting.includes(p.setting ?? '__none__'))   return false;
