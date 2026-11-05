@@ -23,7 +23,8 @@
         .page-header {
             display: flex;
             align-items: center;
-            gap: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.5rem;
             padding: 1rem 1.5rem;
             border-bottom: 1px solid var(--card);
             background: var(--bg2);
@@ -278,6 +279,7 @@
         <h1>Cover Search</h1>
         <button id="btn-back-gallery" class="btn-back">&#8592; Gallery</button>
         <button id="btn-clear-filters" class="btn-back" style="display:none;">&#215; Clear Filters</button>
+        <button id="btn-share" class="btn-back" title="Copy a link to this search">&#128279; Share search</button>
     </header>
 
     <div class="filter-bar">
@@ -363,8 +365,8 @@
             btnClearFilters.style.display = hasFilters ? '' : 'none';
         }
 
-        function saveFilters() {
-            localStorage.setItem(FILTERS_KEY, JSON.stringify({
+        function currentFilters() {
+            return {
                 type:      [...activeFilters.type],
                 system:    [...activeFilters.system],
                 setting:   [...activeFilters.setting],
@@ -375,7 +377,11 @@
                 exclude_system:    [...excludedFilters.system],
                 exclude_setting:   [...excludedFilters.setting],
                 exclude_publisher: [...excludedFilters.publisher],
-            }));
+            };
+        }
+
+        function saveFilters() {
+            localStorage.setItem(FILTERS_KEY, JSON.stringify(currentFilters()));
             updateClearButton();
         }
 
@@ -383,18 +389,26 @@
             let saved;
             try { saved = JSON.parse(localStorage.getItem(FILTERS_KEY)); } catch(e) {}
             if (!saved) return;
-            for (const val of (saved.type      || [])) activeFilters.type.add(val);
-            for (const val of (saved.system    || [])) activeFilters.system.add(val);
-            for (const val of (saved.setting   || [])) activeFilters.setting.add(val);
-            for (const val of (saved.publisher || [])) activeFilters.publisher.add(val);
-            for (const val of (saved.exclude_type      || [])) excludedFilters.type.add(val);
-            for (const val of (saved.exclude_system    || [])) excludedFilters.system.add(val);
-            for (const val of (saved.exclude_setting   || [])) excludedFilters.setting.add(val);
-            for (const val of (saved.exclude_publisher || [])) excludedFilters.publisher.add(val);
+            // Keep only values that have a pill. A shared link (or an old saved
+            // filter) can name a value renamed upstream since; kept, it would be
+            // an invisible filter that can match nothing.
+            let dropped = false;
+            for (const category of Object.keys(activeFilters)) {
+                const known = new Set([...document.querySelectorAll(
+                    `#pills-${category} .pill`)].map(p => p.dataset.value));
+                for (const [target, key] of [[activeFilters, category],
+                                             [excludedFilters, 'exclude_' + category]]) {
+                    for (const val of (saved[key] || [])) {
+                        if (known.has(val)) target[category].add(val);
+                        else dropped = true;
+                    }
+                }
+            }
             searchText = saved.text || '';
             searchInput.value = searchText;
             titleOnly = !!saved.text_title_only;
             searchTitleOnly.checked = titleOnly;
+            if (dropped) saveFilters();
         }
 
         btnClearFilters.addEventListener('click', () => {
@@ -607,6 +621,22 @@
             titleOnly = searchTitleOnly.checked;
             saveFilters();
             renderResults();
+        });
+
+        const btnShare = document.getElementById('btn-share');
+        const shareLabel = btnShare.innerHTML;
+        let shareTimer = null;
+        btnShare.addEventListener('click', async () => {
+            const url = buildShareUrl(currentFilters());
+            try {
+                await navigator.clipboard.writeText(url);
+                btnShare.textContent = '\u2713 Link copied';
+                clearTimeout(shareTimer);
+                shareTimer = setTimeout(() => { btnShare.innerHTML = shareLabel; }, 2000);
+            } catch (e) {
+                // Clipboard API needs a secure context (HTTPS or localhost)
+                window.prompt('Copy this link:', url);
+            }
         });
 
         document.getElementById('btn-back-gallery').addEventListener('click', () => {

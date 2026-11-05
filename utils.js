@@ -24,6 +24,61 @@ const FILTERS_SEEDED_KEY = 'tsr_filters_seeded';
     } catch (e) { /* storage unavailable — ignore */ }
 })();
 
+// ── Shareable filter links ───────────────────────────────────────────────────
+// A shared link carries the full filter in the query string, e.g.
+//   search.html?v=1&type=adventure&xtype=magazine&system=AD%26D+1e&q=dragon&title=1
+// Include values use the category name, excludes an `x` prefix; multi-select
+// values repeat the key. `v` is mandatory: it marks the URL as a shared filter
+// (so `?v=1` alone means "no filter — show everything", distinct from a bare
+// URL, which keeps the visitor's own filter) and versions the format.
+// These names are a public contract once links are out — do not rename them.
+const SHARE_VERSION = '1';
+const SHARE_CATEGORIES = ['type', 'system', 'setting', 'publisher'];
+const SHARE_PARAMS = ['v', 'q', 'title',
+    ...SHARE_CATEGORIES, ...SHARE_CATEGORIES.map(c => 'x' + c)];
+
+/** Build an absolute shareable URL for `page` encoding the filter object. */
+function buildShareUrl(filters, page = 'search.html') {
+    const url = new URL(page, window.location.href);
+    url.search = '';
+    url.hash = '';
+    const sp = url.searchParams;
+    sp.set('v', SHARE_VERSION);
+    const f = filters || {};
+    for (const c of SHARE_CATEGORIES) {
+        for (const val of (f[c] || []))              sp.append(c, val);
+        for (const val of (f['exclude_' + c] || [])) sp.append('x' + c, val);
+    }
+    if (f.text) sp.set('q', f.text);
+    if (f.text_title_only) sp.set('title', '1');
+    return url.toString();
+}
+
+// Import a shared filter from the query string. Runs after the seed above and
+// before any page reads the filter, so every page that loads utils.js accepts
+// a shared link. It silently replaces the visitor's saved filter, then strips
+// its params from the address bar — otherwise every reload would re-import the
+// link and discard changes made since. Values are not validated here
+// (products.json isn't loaded yet); search.html drops values it has no pill for.
+// hotsite.html is skipped: it is isolated from the filter state by design.
+(function importSharedFilters() {
+    try {
+        if (/(^|\/)hotsite\.html$/.test(window.location.pathname)) return;
+        const url = new URL(window.location.href);
+        const sp = url.searchParams;
+        if (sp.get('v') !== SHARE_VERSION) return;   // absent or unknown version
+        const filters = { text: (sp.get('q') || '').trim(), text_title_only: sp.get('title') === '1' };
+        for (const c of SHARE_CATEGORIES) {
+            filters[c] = sp.getAll(c);
+            filters['exclude_' + c] = sp.getAll('x' + c);
+        }
+        localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+        localStorage.setItem(FILTERS_SEEDED_KEY, '1');
+        for (const k of SHARE_PARAMS) sp.delete(k);
+        history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    } catch (e) { /* storage or history unavailable — ignore */ }
+})();
+
 const MONTH_NAMES = ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'];
 
